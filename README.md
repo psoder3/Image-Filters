@@ -12,4 +12,4 @@ https://www.youtube.com/watch?v=yX1x_k25HEE
 
 https://www.youtube.com/watch?v=Cf3IOMyhUw4
 
-If you wish to use this code, there are several external libraries you'll need to include such as ffmpeg, javacv, opencv. Good luck!
+If you wish to use this code, there are several external libraries you'll need to include such as ffmpeg, javacv, opencv, etc. Good luck!
