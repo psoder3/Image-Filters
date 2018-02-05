@@ -7,7 +7,8 @@ import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.GridLayout;
 import java.awt.Image;
-import java.awt.List;
+import java.util.List;
+
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.image.BufferedImage;
@@ -38,6 +39,7 @@ import java.awt.Color;
 import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics2D;
+import java.awt.PopupMenu;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
@@ -45,12 +47,16 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Scanner;
 import javax.imageio.ImageIO;
+import javax.swing.JComboBox;
+import javax.swing.JDialog;
 
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JProgressBar;
 import javax.swing.JScrollPane;
 import javax.swing.JTextField;
+import javax.swing.SwingWorker;
 import javax.swing.Timer;
 import org.bytedeco.javacv.FFmpegFrameGrabber;
 
@@ -89,16 +95,24 @@ public class ImageFilters extends JPanel {
     JCheckBox FirstMappingOnly = new JCheckBox("Only First Mappings");
     JButton SplitVideoFramesButton = new JButton("Split Video Frames");
     JButton ColorizeFramesButton = new JButton("Colorize Video Frames");
-    JButton CreateColorizedMovieButton = new JButton("Create Colorized Movie");
+    //JButton CreateColorizedMovieButton = new JButton("Create Colorized Movie");
     JButton AsciiFilterButton = new JButton("Ascii Filter");
     JButton AsciiFilterVideoButton = new JButton("Create Ascii Movie");
     JButton PixelateButton = new JButton("Pixelate");
     JButton Mosaic1Button = new JButton("Mosaic 1");
     JButton Mosaic2Button = new JButton("Mosaic 2");
+    JButton ApplyFilterButton = new JButton("Apply Filter");
+
     JTextField numberMosaicColumnsBox = new JTextField(3);
     JLabel columnsLabel = new JLabel("Mosaic Rows");
-    JButton MosaicVideoButton = new JButton("Create Mosaic Video");
+    JButton CreateFilteredVideoButton = new JButton("Create Filtered Video");
+    String[] filterStrings = { "Mosaic 1", "Mosaic 2", "Pixelate", "Emboss",
+        "Grayscale", "Colorize", "Step Colors", "Invert Colors" };
 
+    //Create the combo box, select item at index 4.
+    //Indices start at 0, so 4 specifies the pig.
+    JComboBox filterList = new JComboBox(filterStrings);
+    
     String mosaicType = "Mosaic1";
     String Current_Movie_Name;
     int totalFramesInVideo = 0;
@@ -115,7 +129,6 @@ public class ImageFilters extends JPanel {
     BufferedImage image_copy;
     HashMap<String,HashMap<Pixel,Integer>> fourNeighborKeyDictionary = new HashMap();
     HashMap<String,Pixel> fourNeighborKeyDictionary1to1 = new HashMap();
-    
     Pixel[] colorizationArray = new Pixel[6376];
     ArrayList<Pixel>[] colorizeArrayMode = new ArrayList[6376];
 
@@ -901,7 +914,7 @@ public class ImageFilters extends JPanel {
                 
         // in case you'd like to reference the original image without altering it
         // use this image_copy to look at values and image_pixels to set the values
-        //BufferedImage image_copy = getImageCopy();
+        BufferedImage image_copy = getImageCopy();
 
         for (int row = 0; row < image_pixels.getHeight(); row++)
         {
@@ -1081,6 +1094,7 @@ public class ImageFilters extends JPanel {
         graphic.numberMosaicColumnsBox.setText("30");
 
         graphic.frame = new JFrame();
+        graphic.filterList.setSelectedIndex(0);
         JScrollPane scroll = new JScrollPane(graphic,
             JScrollPane.VERTICAL_SCROLLBAR_ALWAYS, 
             JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
@@ -1088,6 +1102,7 @@ public class ImageFilters extends JPanel {
 
         graphic.frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         graphic.frame.setSize(WINDOW_WIDTH, WINDOW_HEIGHT + 100);
+        
         graphic.LoadImageButton.addActionListener((ActionEvent e) -> {
             graphic.LoadImage();
             
@@ -1246,13 +1261,13 @@ public class ImageFilters extends JPanel {
         graphic.SplitVideoFramesButton.addActionListener((ActionEvent e) -> {
             graphic.splitVideoIntoFrames();
         });
-        graphic.ColorizeFramesButton.addActionListener((ActionEvent e) -> {
+        /*graphic.ColorizeFramesButton.addActionListener((ActionEvent e) -> {
             graphic.colorizeVideoFrames("Colorize");
-        });
-        graphic.CreateColorizedMovieButton.addActionListener((ActionEvent e) -> {
+        });*/
+        /*graphic.CreateColorizedMovieButton.addActionListener((ActionEvent e) -> {
             graphic.colorizeVideoFrames("Colorize");
             graphic.assembleVideoFromFrames();
-        });
+        });*/
         graphic.AsciiFilterButton.addActionListener((ActionEvent e) -> {
             graphic.image_pixels = toBufferedImage(selected_image);
             String textImage = graphic.AsciiFilter();
@@ -1285,9 +1300,47 @@ public class ImageFilters extends JPanel {
             graphic.ResetButton.setEnabled(true);
             graphic.repaint();
         });
-        graphic.MosaicVideoButton.addActionListener((ActionEvent e) -> {
+        graphic.ApplyFilterButton.addActionListener((ActionEvent e) -> {
+            graphic.image_pixels = toBufferedImage(selected_image);
+            
+            String selected_filter = (String)graphic.filterList.getSelectedItem();
+            
+            switch (selected_filter) {
+                case "Colorize":
+                    graphic.TwoNeighborKeyColorize();
+                    break;
+                case "Mosaic 1":
+                    graphic.mosaic1();
+                    break;
+                case "Mosaic 2":
+                    graphic.mosaic2();
+                    break;
+                case "Emboss":
+                    graphic.EmbossImage();
+                    break;
+                case "Invert Colors":
+                    graphic.InvertColors();
+                    break;
+                case "Grayscale":
+                    graphic.ConvertToGrayScale();
+                    break;
+                case "Step Colors":
+                    graphic.StepColors();
+                    break;
+                case "Pixelate":
+                    graphic.pixelate();
+                    break;
+                default:
+                    break;
+            }
+            graphic.ResetButton.setEnabled(true);
+            graphic.repaint();
+
+        });        
+        graphic.CreateFilteredVideoButton.addActionListener((ActionEvent e) -> {
             //graphic.image_pixels = toBufferedImage(selected_image);
-            graphic.colorizeVideoFrames(graphic.mosaicType);
+            String selected_filter = (String)graphic.filterList.getSelectedItem();
+            graphic.filterVideoFrames(selected_filter);
             graphic.assembleVideoFromFrames();
         });        
         
@@ -1296,11 +1349,14 @@ public class ImageFilters extends JPanel {
         graphic.buttons.add(graphic.LoadTrainingImageButton);
         graphic.buttons.add(graphic.LoadSetImagesButton);
         graphic.buttons.add(graphic.ResetButton);
-        graphic.buttons.add(graphic.InvertButton);
-        graphic.buttons.add(graphic.GrayScaleButton);
-        graphic.buttons.add(graphic.StepColorsButton);
-        graphic.buttons.add(graphic.EmbossButton);
-        graphic.buttons.add(graphic.BlurButton);
+        graphic.buttons.add(new JLabel("Filter"));
+        graphic.buttons.add(graphic.filterList);
+        graphic.buttons.add(graphic.ApplyFilterButton);
+        //graphic.buttons.add(graphic.InvertButton);
+        //graphic.buttons.add(graphic.GrayScaleButton);
+        //graphic.buttons.add(graphic.StepColorsButton);
+        //graphic.buttons.add(graphic.EmbossButton);
+        //graphic.buttons.add(graphic.BlurButton);
         //graphic.buttons.add(graphic.RedButton);
         //graphic.buttons.add(graphic.GreenButton);
         //graphic.buttons.add(graphic.BlueButton);                
@@ -1309,20 +1365,22 @@ public class ImageFilters extends JPanel {
         //graphic.buttons2.add(graphic.BlackWhiteButton);
         //graphic.buttons2.add(graphic.AlternateRGButton);
         //graphic.buttons.add(graphic.SumBoundingBoxButton);
-        graphic.buttons2.add(graphic.TwoNeighboKeyButton);
+        //graphic.buttons2.add(graphic.TwoNeighboKeyButton);
         graphic.buttons2.add(graphic.FillInBlanksBox);
-        //graphic.buttons2.add(graphic.FirstMappingOnly);       
+        graphic.buttons2.add(graphic.FirstMappingOnly);       
         //graphic.buttons.add(graphic.SplitVideoFramesButton);
         //graphic.buttons.add(graphic.ColorizeFramesButton);
-        graphic.buttons2.add(graphic.CreateColorizedMovieButton);
+        //graphic.buttons2.add(graphic.CreateColorizedMovieButton);
         graphic.buttons2.add(graphic.AsciiFilterButton);
         graphic.buttons2.add(graphic.AsciiFilterVideoButton);
-        graphic.buttons2.add(graphic.PixelateButton);
-        graphic.buttons2.add(graphic.Mosaic1Button);
-        graphic.buttons2.add(graphic.Mosaic2Button);
+        //graphic.buttons2.add(graphic.PixelateButton);
+        //graphic.buttons2.add(graphic.Mosaic1Button);
+        //graphic.buttons2.add(graphic.Mosaic2Button);
         graphic.buttons2.add(graphic.columnsLabel);
         graphic.buttons2.add(graphic.numberMosaicColumnsBox);
-        graphic.buttons.add(graphic.MosaicVideoButton);
+        
+
+        graphic.buttons.add(graphic.CreateFilteredVideoButton);
         graphic.ResetButton.setEnabled(false);
         
         /*
@@ -1504,15 +1562,33 @@ public class ImageFilters extends JPanel {
             ResetButton.setEnabled(false);
             image_copy = getImageCopy();
             
+            
+            countPixelsNotWhite();
             revalidate();
             repaint();
-            countPixelsNotWhite();
         }
         catch (Exception e)
         {
             Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, e);
             System.out.println("There was an error with the file that was selected");
         }
+    }
+    
+    void updateProgressBar(int i)
+    {
+        System.out.println("About to write frame " + (i-firstFrame) + " of " + (lastFrame-firstFrame) + " to file");
+        double percent = ((i+0.0)-firstFrame)/(lastFrame-firstFrame);
+        percent*=100;
+        if (percent > 100)
+        {
+            percent = 100;
+        }
+        if (percent < 0)
+        {
+            percent = 0;
+        }
+        
+        //progressBar.repaint();
     }
     
     int getFrameCount(String filename)
@@ -1557,13 +1633,16 @@ public class ImageFilters extends JPanel {
 
     }
     
-    private void colorizeVideoFrames(String filter) {
+    private void filterVideoFrames(String filter) {
         JFileChooser fc = new JFileChooser();
         fc.setCurrentDirectory(new File(System.getProperty("user.home") 
                 + File.separator + "documents"));
         fc.showOpenDialog(ImageFilters.this);
         try
         {
+            
+            //progressBar = new JProgressBar(0, 500);
+            
             if (fc.getSelectedFile() == null)
             {
                 return;
@@ -1594,16 +1673,31 @@ public class ImageFilters extends JPanel {
                     case "Colorize":
                         TwoNeighborKeyColorize();
                         break;
-                    case "Mosaic1":
+                    case "Mosaic 1":
                         mosaic1();
                         break;
-                    case "Mosaic2":
+                    case "Mosaic 2":
                         mosaic2();
+                        break;
+                    case "Emboss":
+                        EmbossImage();
+                        break;
+                    case "Invert Colors":
+                        InvertColors();
+                        break;
+                    case "Grayscale":
+                        ConvertToGrayScale();
+                        break;
+                    case "Step Colors":
+                        StepColors();
+                        break;
+                    case "Pixelate":
+                        pixelate();
                         break;
                     default:
                         break;
                 }
-                System.out.println("About to write frame " + (i+1) + " of " + (totalFramesInVideo-1) + " to file");
+                updateProgressBar(i);
                 ImageIO.write(image_pixels, "png", new File("tmp/video-frame-" + i + ".png"));
             }
         //System.out.println(System.currentTimeMillis());
@@ -1664,7 +1758,7 @@ public class ImageFilters extends JPanel {
                     //image_copy = getImageCopy();
                     //Thread.sleep(250);
                     //TwoNeighborKeyColorize();
-                    System.out.println("About to write frame " + (i+1) + " of " + (totalFramesInVideo-1) + " to file");
+                    updateProgressBar(i);
                     BufferedImage buffImg = getScreenCapture();
 
                     // DO THIS TO SCREENSHOT OUTPUT WINDOW:
@@ -2201,6 +2295,7 @@ public class ImageFilters extends JPanel {
             return number + " " + value + " " + pixels;
         }
     }
+    
     
 }
 
