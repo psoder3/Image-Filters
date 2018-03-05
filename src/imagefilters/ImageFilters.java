@@ -1,62 +1,53 @@
 package imagefilters;
 
 import java.awt.BorderLayout;
-import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Graphics;
-import java.awt.Graphics2D;
 import java.awt.GridLayout;
 import java.awt.Image;
-import java.util.List;
-
+import java.awt.Polygon;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.awt.image.BufferedImage;
 import java.io.BufferedReader;
-import java.io.DataOutputStream;
-import java.io.File;
-import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import javax.imageio.ImageIO;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JFileChooser;
 import java.awt.AWTException;
-import java.awt.Rectangle;
 import java.awt.Robot;
-import java.awt.Toolkit;
 import java.awt.Color;
 import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics2D;
-import java.awt.PopupMenu;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
+import java.awt.event.MouseEvent;
+import java.awt.event.MouseListener;
 import java.awt.image.BufferedImage;
 import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.Scanner;
 import javax.imageio.ImageIO;
 import javax.swing.JComboBox;
-import javax.swing.JDialog;
+import imagefilters.ColorChooserButton.ColorChangedListener;
+import java.awt.Polygon;
+import java.util.Comparator;
 
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
-import javax.swing.JProgressBar;
 import javax.swing.JScrollPane;
 import javax.swing.JTextField;
-import javax.swing.SwingWorker;
 import javax.swing.Timer;
 import org.bytedeco.javacv.FFmpegFrameGrabber;
 
@@ -66,7 +57,7 @@ import org.bytedeco.javacv.FFmpegFrameGrabber;
 */
 
 
-public class ImageFilters extends JPanel {
+public class ImageFilters extends JPanel implements MouseListener {
 
     static int WINDOW_WIDTH = 1450;
     static int WINDOW_HEIGHT = 900;
@@ -102,13 +93,26 @@ public class ImageFilters extends JPanel {
     JButton Mosaic1Button = new JButton("Mosaic 1");
     JButton Mosaic2Button = new JButton("Mosaic 2");
     JButton ApplyFilterButton = new JButton("Apply Filter");
+    JCheckBox ColorPolygonCheckbox = new JCheckBox("Color Polygons Only");
+    ColorChooserButton colorChooser;
+
+    int[] redRepresentation;
+    int[] greenRepresentation;
+    boolean filterPolygon = false;
+    HashMap<String,Integer> patterns = new HashMap();
+    int frameCounter = 0;
+    Polygon polygon;
 
     JTextField numberMosaicColumnsBox = new JTextField(3);
     JLabel columnsLabel = new JLabel("Mosaic Rows");
     JButton CreateFilteredVideoButton = new JButton("Create Filtered Video");
     String[] filterStrings = { "Mosaic 1", "Mosaic 2", "Pixelate", "Emboss",
-        "Grayscale", "Colorize", "Step Colors", "Invert Colors" };
+        "Grayscale", "Colorize", "Step Colors", "Invert Colors", "Increase Contrast", "Create Training Data",
+        "Count Number of 9px Patterns", "Colorize Polygon", "De-Noise (Mean)", "De-Noise (Median)"};
 
+    String[] keyStrings = { "0 Neighbors", "1 Neighbor", "2 Neighbors", "3 Neighbors",
+        "4 Neighbors", "Corner Neighbors"};
+    
     //Create the combo box, select item at index 4.
     //Indices start at 0, so 4 specifies the pig.
     JComboBox filterList = new JComboBox(filterStrings);
@@ -131,6 +135,8 @@ public class ImageFilters extends JPanel {
     HashMap<String,Pixel> fourNeighborKeyDictionary1to1 = new HashMap();
     Pixel[] colorizationArray = new Pixel[6376];
     ArrayList<Pixel>[] colorizeArrayMode = new ArrayList[6376];
+    
+    
 
     int[] trainingImageContributionCountPerValue = new int[256];
     JFrame frame = new JFrame();
@@ -140,8 +146,193 @@ public class ImageFilters extends JPanel {
     JPanel buttons = new JPanel();
     JPanel buttons2 = new JPanel();
     static Image selected_image = null;
-    File selected_file = new File("/Users/paulsoderquist/Documents/trainingImages/jimmy-stewart-rope.jpg");
+    private File selected_file = new File("/Users/paulsoderquist/Documents/trainingImages/jimmy-stewart-rope.jpg");
 
+    public ImageFilters() {
+        this.colorChooser = new ColorChooserButton(Color.WHITE);
+    }
+    
+    public Pixel findMedian(ArrayList<Pixel> kernal, String color)
+    { 
+        switch (color) {
+            case "red":
+                Collections.sort(kernal, new Comparator() 
+                {
+
+                    @Override
+                    public int compare(Object o1, Object o2) 
+                    {
+                        Pixel p = (Pixel)o1;
+                        Pixel p2 = (Pixel)o2;
+
+                        if (p.red < p2.red)
+                        {
+                            return -1;
+                        }
+                        else if (p.red == p2.red)
+                        {
+                            return 0;
+                        }
+                        else
+                        {
+                            return 1;
+                        }
+                    }
+                }
+                );  break;
+            case "green":
+                Collections.sort(kernal, new Comparator() 
+                {
+
+                    @Override
+                    public int compare(Object o1, Object o2) 
+                    {
+                        Pixel p = (Pixel)o1;
+                        Pixel p2 = (Pixel)o2;
+
+                        if (p.green < p2.green)
+                        {
+                            return -1;
+                        }
+                        else if (p.green == p2.green)
+                        {
+                            return 0;
+                        }
+                        else
+                        {
+                            return 1;
+                        }
+                    }
+                }
+                );  break;
+            case "blue":
+                Collections.sort(kernal, new Comparator() 
+                {
+                    
+                    public int compare(Object o1, Object o2) 
+                    {
+                        Pixel p = (Pixel)o1;
+                        Pixel p2 = (Pixel)o2;
+
+                        if (p.blue < p2.blue)
+                        {
+                            return -1;
+                        }
+                        else if (p.blue == p2.blue)
+                        {
+                            return 0;
+                        }
+                        else
+                        {
+                            return 1;
+                        }
+                    }
+                }
+                );  break;
+            default:
+                break;
+        }
+        return kernal.get(kernal.size()/2);
+    }
+    
+    public void deNoiseImageMedian()
+    {
+        image_copy = getImageCopy();
+
+        int blurAmount = 3;
+        for (int row = blurAmount; row < image_pixels.getHeight()-blurAmount; row++)
+        {
+            for (int column = blurAmount; column < image_pixels.getWidth()-blurAmount; column++)
+            {
+                Pixel currentPixel = getPixel(column,row,image_pixels);
+                int red = 0;
+                int green = 0;
+                int blue = 0;
+                ArrayList<Pixel> kernal = new ArrayList();
+                
+                for (int i = -(blurAmount/2); i < (blurAmount+1)/2; i++)
+                {
+                    for (int j = -(blurAmount/2); j < (blurAmount+1)/2; j++)
+                    {
+                        Pixel p = getPixel(column+i,row+j,image_copy);
+                        kernal.add(p);
+                    } 
+                }
+                
+                int redMedian = findMedian(kernal,"red").red;
+                int greenMedian = findMedian(kernal,"green").green;
+                int blueMedian = findMedian(kernal,"blue").blue;
+                
+                currentPixel.setRGB(redMedian, greenMedian, blueMedian);
+            }
+        }
+    }
+
+    public void deNoiseImageMean()
+    {
+        image_copy = getImageCopy();
+
+        int blurAmount = 3;
+        for (int row = blurAmount; row < image_pixels.getHeight()-blurAmount; row++)
+        {
+            for (int column = blurAmount; column < image_pixels.getWidth()-blurAmount; column++)
+            {
+                Pixel currentPixel = getPixel(column,row,image_pixels);
+                int red = 0;
+                int green = 0;
+                int blue = 0;
+                for (int i = -(blurAmount/2); i < (blurAmount+1)/2; i++)
+                {
+                    for (int j = -(blurAmount/2); j < (blurAmount+1)/2; j++)
+                    {
+                        Pixel p = getPixel(column+i,row+j,image_copy);
+                        red += p.getRedValue();
+                        green += p.getGreenValue();
+                        blue += p.getBlueValue();
+                    } 
+                }
+                int blurSquared = blurAmount*blurAmount;
+                //System.out.println(currentPixel.getRedValue() + " " + red/blurSquared);
+                currentPixel.setRGB(red/blurSquared, green/blurSquared, blue/blurSquared);
+            }
+        }
+    }
+    
+    public void colorizePolygon(Color color)
+    {
+        for (int row = 0; row < image_pixels.getHeight(); row++)
+        {
+            for (int column = 0; column < image_pixels.getWidth(); column++)
+            {
+                if (ColorPolygonCheckbox.isSelected() && !polygon.contains(column,row))
+                {
+                    continue;
+                }
+                float[] hsvInput = new float[3];
+                Color.RGBtoHSB(color.getRed(),color.getGreen(), color.getBlue(), hsvInput);
+                float inputHue = hsvInput[0];
+                Pixel pixel = getPixel(column,row,image_pixels);
+                int r = pixel.getRedValue();
+                int g = pixel.getGreenValue();
+                int b = pixel.getBlueValue();
+                float[] hsv = new float[3];
+                Color.RGBtoHSB(r,g,b,hsv);
+                float h = hsv[0];
+                float s = hsv[1];
+                float v = hsv[2];
+                //System.out.print(hsv[0] + " ");
+                v *= 1.245;
+                if (v > 255) v = 255;
+                int rgb = Color.HSBtoRGB(hsvInput[0],0.35f,v);
+                Color newColor = new Color(rgb);
+                
+                pixel.setRGB(newColor.getRed(), newColor.getGreen(), newColor.getBlue());
+                //System.out.print(255-average_value + ",");
+            }
+            //System.out.println();
+        }
+    }
+    
     public int constrain(int value)
     {
         if (value > 255)
@@ -419,6 +610,156 @@ public class ImageFilters extends JPanel {
         }
     }
     
+    public void countPatterns()
+    {
+        //if (frameCounter % 100 == 0)
+        {
+            System.out.println("--- Frames Counted: " + frameCounter);
+            int size = patterns.size();
+
+            //if (frameCounter % 24 == 0)
+            {
+                System.out.println("--- Patterns seen: " + size);
+            }
+        
+            
+            int duplicateCounter = 0;
+            
+            Iterator<Map.Entry<String, Integer>> it = patterns.entrySet().iterator();
+
+            while (it.hasNext()) {
+                Map.Entry<String, Integer> entry = it.next();
+                Integer val = entry.getValue();
+                if (val > 1)
+                {
+                    duplicateCounter++;
+                }
+            }   
+            System.out.println("--- Patterns that occur multiple times: " + duplicateCounter);
+        }
+        
+        frameCounter++;
+
+        for (int row = 1; row < image_pixels.getHeight()-1; row++)
+        {
+            for (int column = 1; column < image_pixels.getWidth()-1; column++)
+            {
+                // p1 p2 p3
+                // p4 p5 p6
+                // p7 p8 p9
+                
+                Pixel p = getPixel(column,row,image_pixels);
+                int r = p.getRedValue();
+                int g = p.getGreenValue();
+                
+                
+                //Pixel p1 = getPixel(column-1,row-1,image_pixels);
+                //Pixel p2 = getPixel(column,row-1,image_pixels);
+                //Pixel p3 = getPixel(column+1,row-1,image_pixels);
+                Pixel p4 = getPixel(column-1,row,image_pixels);
+                Pixel p5 = getPixel(column,row,image_pixels);
+                Pixel p6 = getPixel(column+1,row,image_pixels);
+                //Pixel p7 = getPixel(column-1,row+1,image_pixels);
+                Pixel p8 = getPixel(column,row+1,image_pixels);
+                //Pixel p9 = getPixel(column+1,row+1,image_pixels);
+
+
+                String key    
+                    = //p1.getAverage() + ","
+                    //+ p2.getAverage() + ","
+                    //+ p3.getAverage() + ","
+                    + p4.getAverage() + ","
+                    + p5.getAverage() + ","
+                    + p6.getAverage() + ","
+                    //+ p7.getAverage() + ","
+                    + p8.getAverage() + ","
+                    //+ p9.getAverage()
+                        ;
+                
+                Object value = patterns.get(key);
+                if (value == null) {
+                    patterns.put(key, 1);
+                } else {
+                    patterns.put(key,(int)value + 1);
+                } 
+            }
+        }
+        
+    }
+    
+    public boolean redValueIsSufficientlyRepresentedInData(int r)
+    {
+        return redRepresentation[r] >= 100000;
+    }
+    
+    public boolean greenValueIsSufficientlyRepresentedInData(int g)
+    {
+        return greenRepresentation[g] >= 100000;
+    }
+    
+    public void createRedGreenTrainingDataFromImage(FileWriter fw, FileWriter fw2) throws IOException
+    {
+        for (int row = 1; row < image_pixels.getHeight()-1; row++)
+        {
+            for (int column = 1; column < image_pixels.getWidth()-1; column++)
+            {
+                // p1 p2 p3
+                // p4 p5 p6
+                // p7 p8 p9
+                
+                Pixel p = getPixel(column,row,image_pixels);
+                int r = p.getRedValue();
+                int g = p.getGreenValue();
+                
+                if (!redValueIsSufficientlyRepresentedInData(r) || !greenValueIsSufficientlyRepresentedInData(g))
+                {
+                    Pixel p1 = getPixel(column-1,row-1,image_pixels);
+                    Pixel p2 = getPixel(column,row-1,image_pixels);
+                    Pixel p3 = getPixel(column+1,row-1,image_pixels);
+                    Pixel p4 = getPixel(column-1,row,image_pixels);
+                    Pixel p5 = getPixel(column,row,image_pixels);
+                    Pixel p6 = getPixel(column+1,row,image_pixels);
+                    Pixel p7 = getPixel(column-1,row+1,image_pixels);
+                    Pixel p8 = getPixel(column,row+1,image_pixels);
+                    Pixel p9 = getPixel(column+1,row+1,image_pixels);
+
+                    if (!redValueIsSufficientlyRepresentedInData(r))
+                    {
+                        fw.append(r + ","
+                                + p1.getAverage() + ","
+                                + p2.getAverage() + ","
+                                + p3.getAverage() + ","
+                                + p4.getAverage() + ","
+                                + p5.getAverage() + ","
+                                + p6.getAverage() + ","
+                                + p7.getAverage() + ","
+                                + p8.getAverage() + ","
+                                + p9.getAverage() + "\n"
+                        );
+                        redRepresentation[r] += 1;
+
+                    }
+                    
+                    if (!greenValueIsSufficientlyRepresentedInData(g))
+                    {
+                        fw2.append(g + ","
+                                + p1.getAverage() + ","
+                                + p2.getAverage() + ","
+                                + p3.getAverage() + ","
+                                + p4.getAverage() + ","
+                                + p5.getAverage() + ","
+                                + p6.getAverage() + ","
+                                + p7.getAverage() + ","
+                                + p8.getAverage() + ","
+                                + p9.getAverage() + "\n"
+                        );
+                        greenRepresentation[g] += 1;
+
+                    }
+                }
+            }
+        }
+    }
     
     public char getAsciiFromGrayscale(int grayscale_value)
     {
@@ -564,6 +905,8 @@ public class ImageFilters extends JPanel {
     
     public void TwoNeighborKeyColorize()
     {
+        image_copy = getImageCopy();
+
         if (FirstMappingOnly.isSelected() == false && alreadyFoundModes == false)
         {
             System.out.println("Starting finding modes...");
@@ -591,11 +934,11 @@ public class ImageFilters extends JPanel {
             for (int column = 1; column < image_pixels.getWidth()-1; column++)
             {
                 Pixel grayPixel = getPixel(column,row,image_copy);
-                //Pixel left = getPixel(column - 1, row, image_copy);
+                Pixel left = getPixel(column - 1, row, image_copy);
                 Pixel right = getPixel(column + 1, row, image_copy);
                 Pixel down = getPixel(column, row+1, image_copy);
-                //Pixel up = getPixel(column, row-1, image_copy);
-                String key = grayPixel.getAverage() + "_" + right.getAverage();// + "_" + down.getAverage(); 
+                Pixel up = getPixel(column, row-1, image_copy);
+                String key = grayPixel.getAverage() + "_" + right.getAverage() + "_" + down.getAverage(); 
                         //key += "_" + left.getAverage() + "_" + up.getAverage();
                 
                         
@@ -865,16 +1208,70 @@ public class ImageFilters extends JPanel {
         {
             for (int column = 0; column < image_pixels.getWidth(); column++)
             {
+                if (ColorPolygonCheckbox.isSelected() && !polygon.contains(column,row))
+                {
+                    continue;
+                }
                 Pixel pixel = getPixel(column,row,image_pixels);
                 int r = pixel.getRedValue();
                 int g = pixel.getGreenValue();
                 int b = pixel.getBlueValue();
                 int average_value = (r + g + b) / 3;
                 pixel.setRGB(average_value, average_value, average_value);
+                //System.out.print(255-average_value + ",");
             }
         }
     }
 
+    public void increaseBWContrast() {
+        
+        int max = 0;
+        int min = 255;
+        
+        for (int row = 0; row < image_pixels.getHeight(); row++)
+        {
+            for (int column = 0; column < image_pixels.getWidth(); column++)
+            {
+                Pixel pixel = getPixel(column,row,image_pixels);
+                int r = pixel.getRedValue();
+                int g = pixel.getGreenValue();
+                int b = pixel.getBlueValue();
+                int average_value = (r + g + b) / 3;
+                
+                if (average_value < min)
+                {
+                    min = average_value;
+                }
+                if (average_value > max)
+                {
+                    max = average_value;
+                }
+            }
+        }
+        int middle = (max + min)/2;
+        for (int row = 0; row < image_pixels.getHeight(); row++)
+        {
+            for (int column = 0; column < image_pixels.getWidth(); column++)
+            {
+                Pixel pixel = getPixel(column,row,image_pixels);
+                int r = pixel.getRedValue();
+                int g = pixel.getGreenValue();
+                int b = pixel.getBlueValue();
+                int average_value = (r + g + b) / 3;
+                int contrastValue;
+                if (average_value < middle)
+                    contrastValue = 0;
+                else                    
+                {
+                    contrastValue = 255;
+                }
+                //contrastValue = (int)((((average_value - min)*1.0)/(max - min))*255);
+                pixel.setRGB(contrastValue, contrastValue, contrastValue);
+                //System.out.print(255-average_value + ",");
+            }
+        }
+    }
+    
     public void StepColors() {
         
         int stepAmount = 60;
@@ -914,7 +1311,7 @@ public class ImageFilters extends JPanel {
                 
         // in case you'd like to reference the original image without altering it
         // use this image_copy to look at values and image_pixels to set the values
-        BufferedImage image_copy = getImageCopy();
+        image_copy = getImageCopy();
 
         for (int row = 0; row < image_pixels.getHeight(); row++)
         {
@@ -947,7 +1344,7 @@ public class ImageFilters extends JPanel {
     {
         // in case you'd like to reference the original image without altering it
         // use this image_copy to look at values and image_pixels to set the values
-        //BufferedImage image_copy = getImageCopy();
+        image_copy = getImageCopy();
         
         int blurAmount = 5;
         for (int row = blurAmount; row < image_pixels.getHeight()-blurAmount; row++)
@@ -1038,6 +1435,20 @@ public class ImageFilters extends JPanel {
         {
             g.drawImage(selected_image, 0, 0, this);            
         }
+        if (polygon.npoints > 1)
+        {
+            g.setColor(Color.BLUE);
+            g.drawPolygon(polygon);
+            for (int i = 0; i < polygon.xpoints.length; i++)
+            {
+                int x1 = polygon.xpoints[i];
+                int y1 = polygon.ypoints[i];
+                int x2 = polygon.xpoints[(i+1)%polygon.xpoints.length];
+                int y2 = polygon.ypoints[(i+1)%polygon.xpoints.length];
+
+                //g.drawLine(x1, y1, x2, y2);
+            }
+        }
     }
 
     
@@ -1090,9 +1501,10 @@ public class ImageFilters extends JPanel {
         
         
         final ImageFilters graphic = new ImageFilters();
+        graphic.polygon = new Polygon();
         //graphic.assembleVideoFromFrames();
         graphic.numberMosaicColumnsBox.setText("30");
-
+        graphic.addMouseListener(graphic);
         graphic.frame = new JFrame();
         graphic.filterList.setSelectedIndex(0);
         JScrollPane scroll = new JScrollPane(graphic,
@@ -1130,6 +1542,8 @@ public class ImageFilters extends JPanel {
             
         });
         graphic.ResetButton.addActionListener((ActionEvent e) -> {
+            graphic.filterPolygon = false;
+            graphic.polygon.reset();
             graphic.ResetImage();
             graphic.repaint();
         });
@@ -1330,6 +1744,15 @@ public class ImageFilters extends JPanel {
                 case "Pixelate":
                     graphic.pixelate();
                     break;
+                case "Increase Contrast":
+                    graphic.increaseBWContrast();
+                    break;
+                case "De-Noise (Mean)":
+                    graphic.deNoiseImageMean();
+                    break;
+                case "De-Noise (Median)":
+                    graphic.deNoiseImageMedian();
+                    break;
                 default:
                     break;
             }
@@ -1338,10 +1761,18 @@ public class ImageFilters extends JPanel {
 
         });        
         graphic.CreateFilteredVideoButton.addActionListener((ActionEvent e) -> {
-            //graphic.image_pixels = toBufferedImage(selected_image);
-            String selected_filter = (String)graphic.filterList.getSelectedItem();
-            graphic.filterVideoFrames(selected_filter);
-            graphic.assembleVideoFromFrames();
+            try {
+                //graphic.image_pixels = toBufferedImage(selected_image);
+                String selected_filter = (String)graphic.filterList.getSelectedItem();
+                graphic.filterVideoFrames(selected_filter);
+                if (!selected_filter.equals("Create Training Data") 
+                        && !selected_filter.equals("Count Number of 9px Patterns"))
+                {
+                    graphic.assembleVideoFromFrames();
+                }
+            } catch (IOException ex) {
+                Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, ex);
+            }
         });        
         
         
@@ -1378,8 +1809,19 @@ public class ImageFilters extends JPanel {
         //graphic.buttons2.add(graphic.Mosaic2Button);
         graphic.buttons2.add(graphic.columnsLabel);
         graphic.buttons2.add(graphic.numberMosaicColumnsBox);
-        
+        graphic.buttons2.add(graphic.ColorPolygonCheckbox);
+        graphic.colorChooser.addColorChangedListener(new ColorChangedListener() {
+            @Override
+            public void colorChanged(Color newColor) {
+                    graphic.image_pixels = toBufferedImage(selected_image);
 
+                    // do something with newColor ...
+                    graphic.colorizePolygon(newColor);
+                    graphic.repaint();
+            }
+        });
+        
+        graphic.buttons2.add(graphic.colorChooser);
         graphic.buttons.add(graphic.CreateFilteredVideoButton);
         graphic.ResetButton.setEnabled(false);
         
@@ -1451,7 +1893,7 @@ public class ImageFilters extends JPanel {
         File[] files = new File(System.getProperty("user.home") 
                 + File.separator + "documents" 
                 + File.separator + "trainingImages"
-                + File.separator + "Set2").listFiles();
+                + File.separator + "Set4").listFiles();
         int file_counter = 1;
         for (File file : files) {
             System.out.println("File " + file_counter + " of " + files.length + ": " + file.getName());
@@ -1535,8 +1977,8 @@ public class ImageFilters extends JPanel {
     private void LoadImage() {
         JFileChooser fc = new JFileChooser();
         fc.setCurrentDirectory(new File(System.getProperty("user.home") 
-                + File.separator + "documents" 
-                + File.separator + "trainingImages"));
+                + File.separator + "downloads" 
+                + File.separator + "handwritten_numbers"));
         fc.showOpenDialog(ImageFilters.this);
         try
         {
@@ -1633,16 +2075,28 @@ public class ImageFilters extends JPanel {
 
     }
     
-    private void filterVideoFrames(String filter) {
+    private void filterVideoFrames(String filter) throws IOException {
+        frameCounter = 0;
+        FileWriter fw = null;
+        FileWriter fw2 = null;
+        if (filter.equals("Create Training Data"))
+        {
+            redRepresentation = new int[256];
+            greenRepresentation = new int[256];
+            File f = new File("bw_color_train_reds_25600000.csv");
+            File f2 = new File("bw_color_train_greens_25600000.csv");
+            fw = new FileWriter(f);
+            fw2 = new FileWriter(f2);
+        }
         JFileChooser fc = new JFileChooser();
-        fc.setCurrentDirectory(new File(System.getProperty("user.home") 
+        fc.setCurrentDirectory(new File(System.getProperty("user.home")
                 + File.separator + "documents"));
         fc.showOpenDialog(ImageFilters.this);
         try
         {
-            
+
             //progressBar = new JProgressBar(0, 500);
-            
+
             if (fc.getSelectedFile() == null)
             {
                 return;
@@ -1657,7 +2111,7 @@ public class ImageFilters extends JPanel {
             //lastFrame = (int)(0.85877862595*totalFramesInVideo);
             FFmpegFrameGrabber g = new FFmpegFrameGrabber(filename);
             g.start();
-        //System.out.println(System.currentTimeMillis());
+            //System.out.println(System.currentTimeMillis());
 
             for (int i = 0 ; i < totalFramesInVideo; i++) {
                 BufferedImage bi = g.grab().getBufferedImage();
@@ -1694,19 +2148,37 @@ public class ImageFilters extends JPanel {
                     case "Pixelate":
                         pixelate();
                         break;
+                    case "Create Training Data":
+                        createRedGreenTrainingDataFromImage(fw,fw2);
+                        break;
+                    case "Count Number of 9px Patterns":
+                        countPatterns();
                     default:
                         break;
                 }
                 updateProgressBar(i);
-                ImageIO.write(image_pixels, "png", new File("tmp/video-frame-" + i + ".png"));
+                if (!filter.equals("Create Training Data") && !filter.equals("Count Number of 9px Patterns"))
+                {
+                    ImageIO.write(image_pixels, "png", new File("tmp/video-frame-" + i + ".png"));
+                }
             }
-        //System.out.println(System.currentTimeMillis());
+            //System.out.println(System.currentTimeMillis());
 
             g.stop();
+            if (filter.equals("Create Training Data"))
+            {
+                fw.close();
+                fw2.close();
+                for (int i = 0; i < 256; i++)
+                {
+                    System.out.println(i + ": " + redRepresentation[i]);
+                    System.out.println(i + ": " + greenRepresentation[i]);   
+                }
+            }
         }
         catch (Exception ex)
         {
-            
+
             System.out.println("There was an error with the file that was selected");
             Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, ex);
 
@@ -1989,10 +2461,10 @@ public class ImageFilters extends JPanel {
             for (int column = 1; column < image_pixels.getWidth()-1; column++)
             {
                 Pixel pixel = getPixel(column,row,image_pixels);
-                //Pixel left = getPixel(column - 1, row, image_pixels);
+                Pixel left = getPixel(column - 1, row, image_pixels);
                 Pixel right = getPixel(column + 1, row, image_pixels);
                 Pixel down = getPixel(column, row+1, image_pixels);
-                //Pixel up = getPixel(column, row-1, image_pixels);
+                Pixel up = getPixel(column, row-1, image_pixels);
                 String key = pixel.getAverage() + "_" + right.getAverage();// + "_" + down.getAverage(); 
                         //key += "_" + left.getAverage() + "_" + up.getAverage();
                 
@@ -2162,6 +2634,40 @@ public class ImageFilters extends JPanel {
         }
         System.out.println(filledCounter + "/256 containers filled");
     }
+
+    @Override
+    public void mouseClicked(MouseEvent e) {
+        if (polygon != null)
+        {
+            System.out.println(e.getX() + ", " + e.getY());
+            polygon.addPoint(e.getX(),e.getY());
+            for (int i = 0; i < polygon.xpoints.length; i++)
+            {
+                int x1 = polygon.xpoints[i];
+                int y1 = polygon.ypoints[i];
+                int x2 = polygon.xpoints[(i+1)%polygon.xpoints.length];
+                int y2 = polygon.ypoints[(i+1)%polygon.xpoints.length];
+                System.out.println("Polygon point: " + x1 + "," + y1 + " " + x2 + "," + y2);
+            }
+            repaint();
+        }
+    }
+
+    @Override
+    public void mousePressed(MouseEvent e) {
+    }
+
+    @Override
+    public void mouseReleased(MouseEvent e) {
+    }
+
+    @Override
+    public void mouseEntered(MouseEvent e) {
+    }
+
+    @Override
+    public void mouseExited(MouseEvent e) {
+    }
     
     class Pixel {
         
@@ -2295,6 +2801,8 @@ public class ImageFilters extends JPanel {
             return number + " " + value + " " + pixels;
         }
     }
+    
+    
     
     
 }
