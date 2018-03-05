@@ -49,7 +49,7 @@ import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTextField;
 import javax.swing.Timer;
-import org.bytedeco.javacv.FFmpegFrameGrabber;
+//import org.bytedeco.javacv.FFmpegFrameGrabber;
 
 
 /*
@@ -68,6 +68,7 @@ public class ImageFilters extends JPanel implements MouseListener {
     boolean onlyFirstMapping = false;
 
     JButton ResetButton = new JButton("Reset");
+    JButton ResetTrainingButton = new JButton("Reset Training");
     JButton InvertButton = new JButton("Invert Colors");
     JButton GrayScaleButton = new JButton("Gray Scale");
     JButton StepColorsButton = new JButton("Step Colors");
@@ -116,6 +117,8 @@ public class ImageFilters extends JPanel implements MouseListener {
     //Create the combo box, select item at index 4.
     //Indices start at 0, so 4 specifies the pig.
     JComboBox filterList = new JComboBox(filterStrings);
+    JComboBox keyList = new JComboBox(keyStrings);
+    
     
     String mosaicType = "Mosaic1";
     String Current_Movie_Name;
@@ -131,8 +134,8 @@ public class ImageFilters extends JPanel implements MouseListener {
     int bwcounter = 0;
     int RGCounter = 0;
     BufferedImage image_copy;
-    HashMap<String,HashMap<Pixel,Integer>> fourNeighborKeyDictionary = new HashMap();
-    HashMap<String,Pixel> fourNeighborKeyDictionary1to1 = new HashMap();
+    HashMap<String,HashMap<Pixel,Integer>> neighbor_key_dictionary = new HashMap();
+    HashMap<String,Pixel> neighbor_key_dictionary_1to1 = new HashMap();
     Pixel[] colorizationArray = new Pixel[6376];
     ArrayList<Pixel>[] colorizeArrayMode = new ArrayList[6376];
     
@@ -903,7 +906,7 @@ public class ImageFilters extends JPanel implements MouseListener {
         return sb.toString();
     }
     
-    public void TwoNeighborKeyColorize()
+    public void NeighborKeyColorize()
     {
         image_copy = getImageCopy();
 
@@ -911,8 +914,8 @@ public class ImageFilters extends JPanel implements MouseListener {
         {
             System.out.println("Starting finding modes...");
             int counter = 0;
-            int size = fourNeighborKeyDictionary.size();
-            for (Map.Entry pair : fourNeighborKeyDictionary.entrySet()) {
+            int size = neighbor_key_dictionary.size();
+            for (Map.Entry pair : neighbor_key_dictionary.entrySet()) {
                 if (counter % 10000 == 0)
                 {
                     System.out.println(counter + " / " + size);
@@ -921,7 +924,7 @@ public class ImageFilters extends JPanel implements MouseListener {
                 String key = (String)(pair.getKey());
                 HashMap<Pixel,Integer> value = (HashMap<Pixel,Integer>)(pair.getValue());
                 Pixel mode = getModeHashMap(value);
-                fourNeighborKeyDictionary1to1.put(key,mode);
+                neighbor_key_dictionary_1to1.put(key,mode);
                 //it.remove(); // avoids a ConcurrentModificationException
             }
             System.out.println("Finished finding modes");
@@ -934,18 +937,41 @@ public class ImageFilters extends JPanel implements MouseListener {
             for (int column = 1; column < image_pixels.getWidth()-1; column++)
             {
                 Pixel grayPixel = getPixel(column,row,image_copy);
-                Pixel left = getPixel(column - 1, row, image_copy);
-                Pixel right = getPixel(column + 1, row, image_copy);
-                Pixel down = getPixel(column, row+1, image_copy);
-                Pixel up = getPixel(column, row-1, image_copy);
-                String key = grayPixel.getAverage() + "_" + right.getAverage() + "_" + down.getAverage(); 
-                        //key += "_" + left.getAverage() + "_" + up.getAverage();
+                String key = grayPixel.getAverage() + "";
+                
+                if (keyList.getSelectedItem().equals("Corner Neighbors"))
+                {
+                    // Do nothing
+                }
+                else
+                {
+                    if (keyList.getSelectedIndex() > 0)
+                    {
+                        Pixel right = getPixel(column + 1, row, image_copy);
+                        key += "_" + right.getAverage();
+                    } 
+                    if (keyList.getSelectedIndex() > 1)
+                    {
+                        Pixel down = getPixel(column, row+1, image_copy);
+                        key += "_" + down.getAverage();
+                    }
+                    if (keyList.getSelectedIndex() > 2)
+                    {
+                        Pixel left = getPixel(column - 1, row, image_copy);
+                        key += "_" + left.getAverage();
+                    }
+                    if (keyList.getSelectedIndex() > 3)
+                    {
+                        Pixel up = getPixel(column, row-1, image_copy);
+                        key += "_" + up.getAverage();
+                    }
+                }
                 
                         
                 Pixel p = null;
                 if (FirstMappingOnly.isSelected() == true)
                 {
-                    HashMap<Pixel,Integer> pxls = fourNeighborKeyDictionary.get(key);
+                    HashMap<Pixel,Integer> pxls = neighbor_key_dictionary.get(key);
                     if (pxls != null)
                     {
                         Set<Pixel> keys = pxls.keySet();
@@ -966,7 +992,7 @@ public class ImageFilters extends JPanel implements MouseListener {
                 }
                 else
                 {
-                    p = fourNeighborKeyDictionary1to1.get(key);
+                    p = neighbor_key_dictionary_1to1.get(key);
                 }
                 if (p != null)
                 {
@@ -1506,7 +1532,9 @@ public class ImageFilters extends JPanel implements MouseListener {
         graphic.numberMosaicColumnsBox.setText("30");
         graphic.addMouseListener(graphic);
         graphic.frame = new JFrame();
-        graphic.filterList.setSelectedIndex(0);
+        graphic.filterList.setSelectedIndex(5);
+        graphic.keyList.setSelectedIndex(0);
+
         JScrollPane scroll = new JScrollPane(graphic,
             JScrollPane.VERTICAL_SCROLLBAR_ALWAYS, 
             JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
@@ -1543,7 +1571,16 @@ public class ImageFilters extends JPanel implements MouseListener {
         });
         graphic.ResetButton.addActionListener((ActionEvent e) -> {
             graphic.filterPolygon = false;
+            graphic.polygon.reset();        
+            graphic.ResetImage();
+            graphic.repaint();
+        });
+        graphic.ResetTrainingButton.addActionListener((ActionEvent e) -> {
+            graphic.filterPolygon = false;
             graphic.polygon.reset();
+            graphic.neighbor_key_dictionary.clear();
+            graphic.neighbor_key_dictionary_1to1.clear();
+            graphic.alreadyFoundModes = false;
             graphic.ResetImage();
             graphic.repaint();
         });
@@ -1669,12 +1706,14 @@ public class ImageFilters extends JPanel implements MouseListener {
         graphic.TwoNeighboKeyButton.addActionListener((ActionEvent e) -> {
             graphic.image_pixels = toBufferedImage(selected_image);
             graphic.ResetButton.setEnabled(true);
-            graphic.TwoNeighborKeyColorize();
+            graphic.NeighborKeyColorize();
             graphic.repaint();
         });
+        /*
         graphic.SplitVideoFramesButton.addActionListener((ActionEvent e) -> {
             graphic.splitVideoIntoFrames();
         });
+        */
         /*graphic.ColorizeFramesButton.addActionListener((ActionEvent e) -> {
             graphic.colorizeVideoFrames("Colorize");
         });*/
@@ -1689,11 +1728,13 @@ public class ImageFilters extends JPanel implements MouseListener {
 
             graphic.repaint();
         });
+        /*
         graphic.AsciiFilterVideoButton.addActionListener((ActionEvent e) -> {
             graphic.createAsciiVideo();
             graphic.assembleVideoFromFrames();
             graphic.repaint();
         });
+        */
         graphic.PixelateButton.addActionListener((ActionEvent e) -> {
             graphic.image_pixels = toBufferedImage(selected_image);
             graphic.pixelate();
@@ -1714,6 +1755,7 @@ public class ImageFilters extends JPanel implements MouseListener {
             graphic.ResetButton.setEnabled(true);
             graphic.repaint();
         });
+        
         graphic.ApplyFilterButton.addActionListener((ActionEvent e) -> {
             graphic.image_pixels = toBufferedImage(selected_image);
             
@@ -1721,7 +1763,7 @@ public class ImageFilters extends JPanel implements MouseListener {
             
             switch (selected_filter) {
                 case "Colorize":
-                    graphic.TwoNeighborKeyColorize();
+                    graphic.NeighborKeyColorize();
                     break;
                 case "Mosaic 1":
                     graphic.mosaic1();
@@ -1759,7 +1801,8 @@ public class ImageFilters extends JPanel implements MouseListener {
             graphic.ResetButton.setEnabled(true);
             graphic.repaint();
 
-        });        
+        });  
+        /*
         graphic.CreateFilteredVideoButton.addActionListener((ActionEvent e) -> {
             try {
                 //graphic.image_pixels = toBufferedImage(selected_image);
@@ -1774,14 +1817,17 @@ public class ImageFilters extends JPanel implements MouseListener {
                 Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, ex);
             }
         });        
-        
+        */
         
         graphic.buttons.add(graphic.LoadImageButton);
         graphic.buttons.add(graphic.LoadTrainingImageButton);
         graphic.buttons.add(graphic.LoadSetImagesButton);
         graphic.buttons.add(graphic.ResetButton);
+        graphic.buttons.add(graphic.ResetTrainingButton);
+        
         graphic.buttons.add(new JLabel("Filter"));
         graphic.buttons.add(graphic.filterList);
+        graphic.buttons.add(graphic.keyList);
         graphic.buttons.add(graphic.ApplyFilterButton);
         //graphic.buttons.add(graphic.InvertButton);
         //graphic.buttons.add(graphic.GrayScaleButton);
@@ -1891,9 +1937,9 @@ public class ImageFilters extends JPanel implements MouseListener {
     private void LoadImageSet()
     {
         File[] files = new File(System.getProperty("user.home") 
-                + File.separator + "documents" 
+                + File.separator + "Documents" 
                 + File.separator + "trainingImages"
-                + File.separator + "Set4").listFiles();
+                + File.separator + "Set1").listFiles();
         int file_counter = 1;
         for (File file : files) {
             System.out.println("File " + file_counter + " of " + files.length + ": " + file.getName());
@@ -1906,7 +1952,8 @@ public class ImageFilters extends JPanel implements MouseListener {
             } 
             catch (Exception ex) 
             {
-                //Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, ex);
+                
+                Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, ex);
                 continue;
             }
         }
@@ -2074,7 +2121,7 @@ public class ImageFilters extends JPanel implements MouseListener {
         return 0;
 
     }
-    
+    /*
     private void filterVideoFrames(String filter) throws IOException {
         frameCounter = 0;
         FileWriter fw = null;
@@ -2343,22 +2390,22 @@ public class ImageFilters extends JPanel implements MouseListener {
             //Process chperm;
 
             //chperm=Runtime.getRuntime().exec("ffmpeg -r 25 -f image2 -s 1920x1080 -start_number 0 -i tmp/video-frame-%d.png -vframes 7 -vcodec libx264 -crf 25  -pix_fmt yuv420p outVideoNetbeans.mp4\n");
-            /*
-            DataOutputStream os = 
-                  new DataOutputStream(chperm.getOutputStream());
+            
+            //DataOutputStream os = 
+            //      new DataOutputStream(chperm.getOutputStream());
 
-            os.writeBytes("ffmpeg -r 25 -f image2 -s 1920x1080 -start_number 0 -i tmp/video-frame-%d.png -vframes 7 -vcodec libx264 -crf 25  -pix_fmt yuv420p netbeansTest.mp4\n");
-            os.flush();
+            //os.writeBytes("ffmpeg -r 25 -f image2 -s 1920x1080 -start_number 0 -i tmp/video-frame-%d.png -vframes 7 -vcodec libx264 -crf 25  -pix_fmt yuv420p netbeansTest.mp4\n");
+            //os.flush();
 
-            chperm.waitFor();
-            */
+            //chperm.waitFor();
+            
         } catch (Exception e) {
             // TODO Auto-generated catch block
             e.printStackTrace();
         }
         
     }
-    
+    */
     private void ResetImage() {
         try
         {
@@ -2455,26 +2502,50 @@ public class ImageFilters extends JPanel implements MouseListener {
     private void train2NeighborKey()
     {
         image_pixels = toBufferedImage(selected_image);
-        
+        //System.out.println(keyList.getSelectedIndex());
+
         for (int row = 1; row < image_pixels.getHeight()-1; row++)
         {
             for (int column = 1; column < image_pixels.getWidth()-1; column++)
             {
                 Pixel pixel = getPixel(column,row,image_pixels);
-                Pixel left = getPixel(column - 1, row, image_pixels);
-                Pixel right = getPixel(column + 1, row, image_pixels);
-                Pixel down = getPixel(column, row+1, image_pixels);
-                Pixel up = getPixel(column, row-1, image_pixels);
-                String key = pixel.getAverage() + "_" + right.getAverage();// + "_" + down.getAverage(); 
-                        //key += "_" + left.getAverage() + "_" + up.getAverage();
+
+                String key = pixel.getAverage() + "";
                 
+                if (keyList.getSelectedItem().equals("Corner Neighbors"))
+                {
+                    // Do nothing
+                }
+                else
+                {
+                    if (keyList.getSelectedIndex() > 0)
+                    {
+                        Pixel right = getPixel(column + 1, row, image_pixels);
+                        key += "_" + right.getAverage();
+                    } 
+                    if (keyList.getSelectedIndex() > 1)
+                    {
+                        Pixel down = getPixel(column, row+1, image_pixels);
+                        key += "_" + down.getAverage();
+                    }
+                    if (keyList.getSelectedIndex() > 2)
+                    {
+                        Pixel left = getPixel(column - 1, row, image_pixels);
+                        key += "_" + left.getAverage();
+                    }
+                    if (keyList.getSelectedIndex() > 3)
+                    {
+                        Pixel up = getPixel(column, row-1, image_pixels);
+                        key += "_" + up.getAverage();
+                    }
+                }
                 
-                HashMap<Pixel,Integer> pxls = fourNeighborKeyDictionary.get(key);
+                HashMap<Pixel,Integer> pxls = neighbor_key_dictionary.get(key);
                 if (pxls == null)
                 {
                     pxls = new HashMap();
                     pxls.put(pixel,1);
-                    fourNeighborKeyDictionary.put(key, pxls);
+                    neighbor_key_dictionary.put(key, pxls);
                 }
                 else if (FirstMappingOnly.isSelected() == false)
                 {
@@ -2492,7 +2563,7 @@ public class ImageFilters extends JPanel implements MouseListener {
                 
             }
         }
-        int filledCounter = fourNeighborKeyDictionary.size();
+        int filledCounter = neighbor_key_dictionary.size();
         
         System.out.println(filledCounter + "   /   16,777,216 containers filled");//"1,099,511,600,000 containers filled");
     }
@@ -2806,4 +2877,3 @@ public class ImageFilters extends JPanel implements MouseListener {
     
     
 }
-
