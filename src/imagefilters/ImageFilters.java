@@ -1941,8 +1941,11 @@ public class ImageFilters extends JPanel implements MouseListener {
         fc.setCurrentDirectory(new File(System.getProperty("user.home") 
                 + File.separator + "documents" 
                 + File.separator + "trainingImages"));
-        fc.showOpenDialog(ImageFilters.this);
-        
+        int result = fc.showOpenDialog(ImageFilters.this);
+        if (result == JFileChooser.CANCEL_OPTION)
+        {
+            return;
+        }
         if (fc.getSelectedFile() == null)
         {
             return;
