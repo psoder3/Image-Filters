@@ -49,7 +49,7 @@ import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTextField;
 import javax.swing.Timer;
-//import org.bytedeco.javacv.FFmpegFrameGrabber;
+import org.bytedeco.javacv.FFmpegFrameGrabber;
 
 
 /*
@@ -1709,15 +1709,15 @@ public class ImageFilters extends JPanel implements MouseListener {
             graphic.NeighborKeyColorize();
             graphic.repaint();
         });
-        /*
+        
         graphic.SplitVideoFramesButton.addActionListener((ActionEvent e) -> {
             graphic.splitVideoIntoFrames();
         });
-        */
-        /*graphic.ColorizeFramesButton.addActionListener((ActionEvent e) -> {
+        /*
+        graphic.ColorizeFramesButton.addActionListener((ActionEvent e) -> {
             graphic.colorizeVideoFrames("Colorize");
-        });*/
-        /*graphic.CreateColorizedMovieButton.addActionListener((ActionEvent e) -> {
+        });
+        graphic.CreateColorizedMovieButton.addActionListener((ActionEvent e) -> {
             graphic.colorizeVideoFrames("Colorize");
             graphic.assembleVideoFromFrames();
         });*/
@@ -1728,13 +1728,13 @@ public class ImageFilters extends JPanel implements MouseListener {
 
             graphic.repaint();
         });
-        /*
+       
         graphic.AsciiFilterVideoButton.addActionListener((ActionEvent e) -> {
             graphic.createAsciiVideo();
             graphic.assembleVideoFromFrames();
             graphic.repaint();
         });
-        */
+        
         graphic.PixelateButton.addActionListener((ActionEvent e) -> {
             graphic.image_pixels = toBufferedImage(selected_image);
             graphic.pixelate();
@@ -1802,7 +1802,7 @@ public class ImageFilters extends JPanel implements MouseListener {
             graphic.repaint();
 
         });  
-        /*
+        
         graphic.CreateFilteredVideoButton.addActionListener((ActionEvent e) -> {
             try {
                 //graphic.image_pixels = toBufferedImage(selected_image);
@@ -1817,7 +1817,7 @@ public class ImageFilters extends JPanel implements MouseListener {
                 Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, ex);
             }
         });        
-        */
+        
         
         graphic.buttons.add(graphic.LoadImageButton);
         graphic.buttons.add(graphic.LoadTrainingImageButton);
@@ -1936,10 +1936,18 @@ public class ImageFilters extends JPanel implements MouseListener {
     
     private void LoadImageSet()
     {
-        File[] files = new File(System.getProperty("user.home") 
-                + File.separator + "Documents" 
-                + File.separator + "trainingImages"
-                + File.separator + "Set1").listFiles();
+        JFileChooser fc = new JFileChooser();
+        fc.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+        fc.setCurrentDirectory(new File(System.getProperty("user.home") 
+                + File.separator + "documents" 
+                + File.separator + "trainingImages"));
+        fc.showOpenDialog(ImageFilters.this);
+        
+        if (fc.getSelectedFile() == null)
+        {
+            return;
+        }
+        File[] files = fc.getSelectedFile().listFiles();
         int file_counter = 1;
         for (File file : files) {
             System.out.println("File " + file_counter + " of " + files.length + ": " + file.getName());
@@ -1953,7 +1961,7 @@ public class ImageFilters extends JPanel implements MouseListener {
             catch (Exception ex) 
             {
                 
-                Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, ex);
+                //Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, ex);
                 continue;
             }
         }
@@ -2024,8 +2032,8 @@ public class ImageFilters extends JPanel implements MouseListener {
     private void LoadImage() {
         JFileChooser fc = new JFileChooser();
         fc.setCurrentDirectory(new File(System.getProperty("user.home") 
-                + File.separator + "downloads" 
-                + File.separator + "handwritten_numbers"));
+                + File.separator + "documents" 
+                + File.separator + "trainingImages"));
         fc.showOpenDialog(ImageFilters.this);
         try
         {
@@ -2052,7 +2060,7 @@ public class ImageFilters extends JPanel implements MouseListener {
             image_copy = getImageCopy();
             
             
-            countPixelsNotWhite();
+            //countPixelsNotWhite();
             revalidate();
             repaint();
         }
@@ -2121,7 +2129,7 @@ public class ImageFilters extends JPanel implements MouseListener {
         return 0;
 
     }
-    /*
+    
     private void filterVideoFrames(String filter) throws IOException {
         frameCounter = 0;
         FileWriter fw = null;
@@ -2172,7 +2180,7 @@ public class ImageFilters extends JPanel implements MouseListener {
 
                 switch (filter) {
                     case "Colorize":
-                        TwoNeighborKeyColorize();
+                        NeighborKeyColorize();
                         break;
                     case "Mosaic 1":
                         mosaic1();
@@ -2405,7 +2413,7 @@ public class ImageFilters extends JPanel implements MouseListener {
         }
         
     }
-    */
+    
     private void ResetImage() {
         try
         {
