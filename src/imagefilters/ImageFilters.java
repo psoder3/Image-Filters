@@ -42,6 +42,7 @@ import javax.swing.JComboBox;
 import imagefilters.ColorChooserButton.ColorChangedListener;
 import java.awt.Polygon;
 import java.util.Comparator;
+import java.util.TreeMap;
 
 import javax.swing.JFrame;
 import javax.swing.JLabel;
@@ -112,12 +113,13 @@ public class ImageFilters extends JPanel implements MouseListener {
     JButton CreateFilteredVideoButton = new JButton("Create Filtered Video");
     String[] filterStrings = { "Mosaic 1", "Mosaic 2", "Pixelate", "Emboss",
         "Grayscale", "Colorize", "Step Colors", "Invert Colors", "Increase Contrast", "Create Training Data",
-        "Count Number of 9px Patterns", "Colorize Polygon", "De-Noise (Mean)", "De-Noise (Median)"};
+        "Colorize Polygon", "De-Noise (Mean)", "De-Noise (Median)"};
 
     String[] keyStrings = { "0 Neighbors", "1 Neighbor", "2 Neighbors", "3 Neighbors",
-        "4 Neighbors"};
-    
-    
+        "4 Neighbors", "Optimized Interpolate"};
+    ArrayList<Pixel>[][][][][] optInterpolationDictionary = new ArrayList[256][][][][];
+    ArrayList<Pair>[] neighborMeanMap = new ArrayList[256];
+
     
     //Create the combo box, select item at index 4.
     //Indices start at 0, so 4 specifies the pig.
@@ -914,6 +916,116 @@ public class ImageFilters extends JPanel implements MouseListener {
     }
     
     
+    private String getClosestPixelByNeighborMean(int grayPixAverage, double neighborMean)
+    {
+        ArrayList<Pair> meanMap = neighborMeanMap[grayPixAverage];
+        if (meanMap == null) return "no map";
+        int upperBound = meanMap.size();
+        int lowerBound = 0;
+        while (Math.abs(upperBound - lowerBound) > 1)
+        {
+            int guess = (upperBound + lowerBound) / 2;
+            if (meanMap.get(guess).key > neighborMean)
+            {
+                upperBound = guess;
+            }
+            else
+            {
+                lowerBound = guess;
+            }
+        }
+        
+        return meanMap.get(lowerBound).value;
+                
+    }
+    
+    
+    private void OptimizeInterpolationColorize()
+    {
+        
+        image_copy = getImageCopy();
+
+        for (int row = 1; row < image_copy.getHeight()-1; row++)
+        {
+            for (int column = 1; column < image_copy.getWidth()-1; column++)
+            {
+                Pixel grayPixel = getPixel(column,row,image_pixels);
+                int grayPixAverage = grayPixel.getAverage();
+
+                int right = getPixel(column + 1, row, image_copy).getAverage();
+                int down = getPixel(column, row + 1, image_copy).getAverage();
+                int left = getPixel(column - 1, row, image_copy).getAverage();
+                int up = getPixel(column, row - 1, image_copy).getAverage();
+                
+                
+                
+                Pixel p = null;
+                if (optInterpolationDictionary[grayPixAverage] != null)
+                {
+                    if (optInterpolationDictionary[grayPixAverage][right] != null)
+                    {
+                        if (optInterpolationDictionary[grayPixAverage][right][down] != null)
+                        {
+                            if (optInterpolationDictionary[grayPixAverage][right][down][left] != null)
+                            {
+                                if (optInterpolationDictionary[grayPixAverage][right][down][left][up] != null)
+                                {
+                            
+                                    if (!optInterpolationDictionary[grayPixAverage][right][down][left][up].isEmpty())
+                                    {
+                                        if (FirstMappingOnly.isSelected())
+                                        {
+                                            p = optInterpolationDictionary[grayPixAverage][right][down][left][up].get(0);
+                                        }
+                                        else
+                                        {
+                                            p = getMode(optInterpolationDictionary[grayPixAverage][right][down][left][up]);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                if (p == null)
+                {
+                    // Interpolate                    
+                    double neighborMean = (right + down + left + up) / 4.0;
+                    
+                    String closestPattern = getClosestPixelByNeighborMean(grayPixAverage, neighborMean);
+                    if (!closestPattern.equals("no map"))
+                    {
+                        // Parse pattern
+                        Scanner patternParser = new Scanner(closestPattern);
+                        int closestCenter = patternParser.nextInt();
+                        int closestRight = patternParser.nextInt();
+                        int closestDown = patternParser.nextInt();
+                        int closestLeft = patternParser.nextInt();
+                        int closestUp = patternParser.nextInt();
+                        if (FirstMappingOnly.isSelected())
+                        {
+                            p = optInterpolationDictionary[closestCenter][closestRight][closestDown][closestLeft][closestUp].get(0);
+                        }
+                        else
+                        {                        
+                            p = getMode(optInterpolationDictionary[closestCenter][closestRight][closestDown][closestLeft][closestUp]);
+                        }
+                    }
+                }
+                if (p != null)
+                {
+                    grayPixel.setRGB(p.red, p.green, p.blue);
+                
+                }
+                else
+                {
+                    grayPixel.setRGB(255,255,255);
+                }
+            }
+        }
+
+    }
+    
     double getSurroundingMean(String key)
     {
         int index1 = key.indexOf("*");
@@ -923,6 +1035,12 @@ public class ImageFilters extends JPanel implements MouseListener {
     
     public void NeighborKeyColorize()
     {
+        if (keyList.getSelectedItem().equals("Optimized Interpolate"))
+        {
+            OptimizeInterpolationColorize();
+            return;
+        }
+        
         image_copy = getImageCopy();
 
         if (FirstMappingOnly.isSelected() == false && alreadyFoundModes == false)
@@ -1727,6 +1845,13 @@ public class ImageFilters extends JPanel implements MouseListener {
             //graphic.trainColorizeArrayMode();
             //graphic.train24NeighborSumMode();
             graphic.train2NeighborKey();
+            for (int i = 0; i < 256; i++)
+            {
+                if (graphic.neighborMeanMap[i] != null)
+                {
+                    Collections.sort(graphic.neighborMeanMap[i]);
+                }
+            }
             
         });
         graphic.LoadSetImagesButton.addActionListener((ActionEvent e) -> {
@@ -1901,6 +2026,7 @@ public class ImageFilters extends JPanel implements MouseListener {
         });
        
         graphic.AsciiFilterVideoButton.addActionListener((ActionEvent e) -> {
+            
             graphic.createAsciiVideo();
             graphic.assembleVideoFromFrames();
             graphic.repaint();
@@ -1911,6 +2037,7 @@ public class ImageFilters extends JPanel implements MouseListener {
             graphic.pixelate();
             graphic.ResetButton.setEnabled(true);
             graphic.repaint();
+            
         });
         graphic.Mosaic1Button.addActionListener((ActionEvent e) -> {
             graphic.image_pixels = toBufferedImage(selected_image);
@@ -1940,7 +2067,7 @@ public class ImageFilters extends JPanel implements MouseListener {
             try {
                 //graphic.image_pixels = toBufferedImage(selected_image);
                 String selected_filter = (String)graphic.filterList.getSelectedItem();
-                graphic.filterVideoFrames(selected_filter);
+                if (!graphic.filterVideoFrames(selected_filter)) return;
                 if (!selected_filter.equals("Create Training Data") 
                         && !selected_filter.equals("Count Number of 9px Patterns"))
                 {
@@ -1948,7 +2075,7 @@ public class ImageFilters extends JPanel implements MouseListener {
                     graphic.addSoundToVideo();
                 }
             } catch (IOException ex) {
-                Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, ex);
+                //Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, ex);
             }
         });        
         
@@ -2100,8 +2227,15 @@ public class ImageFilters extends JPanel implements MouseListener {
             catch (Exception ex) 
             {
                 
-                //Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, ex);
+                Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, ex);
                 continue;
+            }
+        }
+        for (int i = 0; i < 256; i++)
+        {
+            if (neighborMeanMap[i] != null)
+            {
+                Collections.sort(neighborMeanMap[i]);
             }
         }
     }
@@ -2212,18 +2346,20 @@ public class ImageFilters extends JPanel implements MouseListener {
     
     void updateProgressBar(int i)
     {
-        System.out.println("About to write frame " + (i-firstFrame) + " of " + (lastFrame-firstFrame) + " to file");
-        double percent = ((i+0.0)-firstFrame)/(lastFrame-firstFrame);
-        percent*=100;
-        if (percent > 100)
+        if (i % 10 == 0)
         {
-            percent = 100;
+            System.out.println("About to write frame " + (i) + " of " + (lastFrame) + " to file");
+            double percent = ((i+0.0))/(lastFrame);
+            percent*=100;
+            if (percent > 100)
+            {
+                percent = 100;
+            }
+            if (percent < 0)
+            {
+                percent = 0;
+            }
         }
-        if (percent < 0)
-        {
-            percent = 0;
-        }
-        
         //progressBar.repaint();
     }
     
@@ -2325,9 +2461,10 @@ public class ImageFilters extends JPanel implements MouseListener {
     
     private void extractAndSaveAudioToFile(String video_filename)
     {
+        String audio_destination = "/Volumes/PAUL_SODERQ 1/Podcasts/" + "output-audio.aac";
         try {
             String[] command = { 
-                "/usr/local/bin/ffmpeg", "-i", video_filename, "-vn", "-codec", "copy", "-write_xing", "0", "output-audio.aac", "-y"
+                "/usr/local/bin/ffmpeg", "-i", video_filename, "-vn", "-codec", "copy", "-write_xing", "0", audio_destination, "-y"
             };
             
             Process proc = Runtime.getRuntime().exec(command);
@@ -2364,7 +2501,7 @@ public class ImageFilters extends JPanel implements MouseListener {
     }
     
     
-    private void filterVideoFrames(String filter) throws IOException {
+    private boolean filterVideoFrames(String filter) throws IOException {
         frameCounter = 0;
         FileWriter fw = null;
         FileWriter fw2 = null;
@@ -2380,17 +2517,21 @@ public class ImageFilters extends JPanel implements MouseListener {
         JFileChooser fc = new JFileChooser();
         fc.setCurrentDirectory(new File(System.getProperty("user.home")
                 + File.separator + "documents"));
-        fc.showOpenDialog(ImageFilters.this);
+        int result = fc.showOpenDialog(ImageFilters.this);
         try
         {
 
             //progressBar = new JProgressBar(0, 500);
-
+            if (result == JFileChooser.CANCEL_OPTION)
+            {
+                return false;
+            }
             if (fc.getSelectedFile() == null)
             {
-                return;
+                return false;
             }
             Current_Movie_Name = fc.getSelectedFile().getName();
+            
             String filename = fc.getSelectedFile().getAbsolutePath();
             extractAndSaveAudioToFile(filename);
             //System.out.println(filename);
@@ -2400,11 +2541,12 @@ public class ImageFilters extends JPanel implements MouseListener {
             // If I want to render part of a video give a percent (of video) for first and last frame
             //firstFrame = (int)(0.33587786259*totalFramesInVideo);
             //lastFrame = (int)(0.85877862595*totalFramesInVideo);
+            firstFrame = 0;
             FFmpegFrameGrabber g = new FFmpegFrameGrabber(filename);
             g.start();
             //System.out.println(System.currentTimeMillis());
 
-            for (int i = 0 ; i < totalFramesInVideo; i++) {
+            for (int i = 0; i < totalFramesInVideo; i++) {
                 BufferedImage bi = g.grab().getBufferedImage();
                 if (i < firstFrame || i > lastFrame)
                 {
@@ -2450,7 +2592,7 @@ public class ImageFilters extends JPanel implements MouseListener {
                 updateProgressBar(i);
                 if (!filter.equals("Create Training Data") && !filter.equals("Count Number of 9px Patterns"))
                 {
-                    ImageIO.write(image_pixels, "png", new File("tmp/video-frame-" + i + ".png"));
+                    ImageIO.write(image_pixels, "png", new File("/Volumes/PAUL_SODERQ 1/Podcasts/tmp/video-frame-" + i + ".png"));
                 }
             }
             //System.out.println(System.currentTimeMillis());
@@ -2474,15 +2616,27 @@ public class ImageFilters extends JPanel implements MouseListener {
             Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, ex);
 
         }
+        return true;
     }
     
     private void createAsciiVideo() {
         try
         {
             JFileChooser fc = new JFileChooser();
+            fc.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+
             fc.setCurrentDirectory(new File(System.getProperty("user.home")
                     + File.separator + "documents"));
             fc.showOpenDialog(ImageFilters.this);
+            
+            try {
+                String filename1 = fc.getSelectedFile().getAbsolutePath();
+                //String filename1 = "/Volumes/PAUL_SODERQ 1/Podcasts/tmp/";
+                ImageIO.write(image_pixels, "png", new File(filename1 + "/aaatest.png"));
+            } catch (IOException ex) {
+                Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, ex);
+            }
+            
             System.out.println("Video will start in 10 seconds. Please expand/pull top of output window upward");
             Thread.sleep(10000);
             try
@@ -2597,18 +2751,30 @@ public class ImageFilters extends JPanel implements MouseListener {
         String movieName = Current_Movie_Name.substring(0, Current_Movie_Name.length()-4);
         try 
         {
+            String video_source = "/Volumes/PAUL_SODERQ 1/Podcasts/";//"/Users/paulsoderquist/NetBeansProjects/ImageEditor/";
+            
+            String audio_source = "/Volumes/PAUL_SODERQ 1/Podcasts/";//"/Users/paulsoderquist/NetBeansProjects/ImageEditor/";
+            
             System.out.println("Adding sound to video...");
             //System.out.println(System.currentTimeMillis());
             String[] command = { 
                 "/usr/local/bin/ffmpeg", "-y", 
                 "-i", 
-                "/Users/paulsoderquist/NetBeansProjects/ImageEditor/" + movieName + "_Colorized.mp4", 
+                video_source + movieName + "_Colorized.mp4", 
                 "-i",
-                "/Users/paulsoderquist/NetBeansProjects/ImageEditor/output-audio.aac",
+                audio_source + "output-audio.aac",
                 "-vcodec", "copy",
                 "-acodec", "copy",
                 "-write_xing", "0",
-                movieName+"_ColorizedWithAudio.mp4"
+                "-shortest",
+                video_source + movieName+"_ColorizedWithAudio.mp4"
+                
+                /*
+                JUST RUN THIS COMMAND DIRECTLY ON THE COMMAND LINE. IT'S EASIER TO SEE THE PROGRESS ANYWAY
+                /usr/local/bin/ffmpeg -i "/Volumes/PAUL_SODERQ 1/MIDIs/Harvey_ColorizedThroughCommandLine.mp4" -i "/Volumes/PAUL_SODERQ 1/MIDIs/output-audio.aac" -vcodec copy -acodec copy -write_xing 0 -shortest "/Volumes/PAUL_SODERQ 1/MIDIs/Harvey_ColorizedWithAudio.mp4"
+                */    
+                    
+                    
             };
             Process proc = Runtime.getRuntime().exec(command);
             
@@ -2645,10 +2811,17 @@ public class ImageFilters extends JPanel implements MouseListener {
     
     private void assembleVideoFromFrames()
     {
-
+        
+        String img_source = "/Volumes/PAUL_SODERQ 1/Podcasts/";//"/Users/paulsoderquist/NetBeansProjects/ImageEditor/";
         String movieName = Current_Movie_Name.substring(0, Current_Movie_Name.length()-4);
+        firstFrame = 1;
+        lastFrame = 150019;
         try 
         {
+            //1520952083694
+            //1520952084528
+                        System.out.println(System.currentTimeMillis());
+
             System.out.println("Assembling Frames into Video...");
             //System.out.println(System.currentTimeMillis());
             String[] command = { 
@@ -2656,7 +2829,7 @@ public class ImageFilters extends JPanel implements MouseListener {
                 "-r", frameRate+"", "-f", "image2", 
                 "-start_number", firstFrame+"",//1", 
                 "-i", 
-                "/Users/paulsoderquist/NetBeansProjects/ImageEditor/tmp/video-frame-%d.png", 
+                img_source + "tmp/video-frame-%d.png", 
                 //"-i",
                 //"/Users/paulsoderquist/NetBeansProjects/ImageEditor/output-audio.aac",
                 "-vframes",
@@ -2665,7 +2838,13 @@ public class ImageFilters extends JPanel implements MouseListener {
                 //"-acodec", "copy",
                 "-pix_fmt", "yuv420p",
                 "-write_xing", "0",
-                movieName+"_Colorized.mp4"
+                img_source + movieName+"_Colorized.mp4"
+                    
+                /*
+                    JUST RUN THIS COMMAND DIRECTLY ON THE COMMAND LINE. IT'S EASIER TO SEE THE PROGRESS ANYWAY
+                    /usr/local/bin/ffmpeg -r 24 -f image2 -start_number 1 -i /Volumes/PAUL_SODERQ 1/MIDIs/tmp/video-frame-%d.png" -vframes 150019 -c:v libx264 -crf 25 -pix_fmt yuv420p -write_xing 0 "/Volumes/PAUL_SODERQ 1/MIDIs/testCommand_Colorized.mp4"
+                */
+                    
             };
             Process proc = Runtime.getRuntime().exec(command);
             
@@ -2691,7 +2870,8 @@ public class ImageFilters extends JPanel implements MouseListener {
 
             }
             System.out.println("Finished assembling images to video " + movieName + "_Colorized.mp4");
-            
+            System.out.println(System.currentTimeMillis());
+
             
         } catch (Exception e) {
             // TODO Auto-generated catch block
@@ -2793,53 +2973,127 @@ public class ImageFilters extends JPanel implements MouseListener {
         return new Pixel(red,green,blue,column,row);
     }
     
+    
+    private void trainForOptimizedInterpolation()
+    {
+        for (int row = 1; row < image_pixels.getHeight()-1; row+=2)
+        {
+            for (int column = 2; column < image_pixels.getWidth()-1; column++)
+            {
+                String indexConcat = "";
+                Pixel pixel = getPixel(column,row,image_pixels);
+
+                int average = pixel.getAverage();
+                int right = getPixel(column + 1, row, image_pixels).getAverage();
+                int down = getPixel(column, row + 1, image_pixels).getAverage();
+                int left = getPixel(column - 1, row, image_pixels).getAverage();
+                int up = getPixel(column, row - 1, image_pixels).getAverage();
+
+                indexConcat += average + " " + right + " " + down + " " + left + " " + up;
+                double neighborMean = (right + down + left + up) / 4.0;
+                Pair pair = new Pair();
+                pair.key = neighborMean;
+                pair.value = indexConcat;
+                if (neighborMeanMap[average] == null)
+                {
+                    neighborMeanMap[average] = new ArrayList();
+                }
+                neighborMeanMap[average].add(pair);
+                
+                
+                    if (optInterpolationDictionary[average] == null)
+                    {
+                        optInterpolationDictionary[average] = new ArrayList[256][][][];
+                    }
+                    if (optInterpolationDictionary[average][right] == null)
+                    {
+                        optInterpolationDictionary[average][right] = new ArrayList[256][][];
+                    }
+                    if (optInterpolationDictionary[average][right][down] == null)
+                    {
+                        optInterpolationDictionary[average][right][down] = new ArrayList[256][];
+                    }
+                    if (optInterpolationDictionary[average][right][down][left] == null)
+                    {
+                        optInterpolationDictionary[average][right][down][left] = new ArrayList[256];
+                    }
+                    if (optInterpolationDictionary[average][right][down][left][up] == null)
+                    {
+                        optInterpolationDictionary[average][right][down][left][up] = new ArrayList();
+                    }
+                    if (!FirstMappingOnly.isSelected() 
+                        || optInterpolationDictionary[average][right][down][left][up].isEmpty())
+                    {
+                        optInterpolationDictionary[average][right][down][left][up].add(pixel);
+
+                    }
+                
+                
+            }
+        }
+        
+    }
+    
     private String getColorizationKey(BufferedImage image_pixels, int row, int column, Pixel pixel)
     {
         String key = pixel.getAverage() + "";
         int numNeighbors = 0;
         int sumNeighbors = 0;
-
-        if (keyList.getSelectedIndex() > 0)
+        if (keyList.getSelectedItem().equals("Optimize Interpolation"))
         {
-            int right = getPixel(column + 1, row, image_pixels).getAverage();
-            key += "_" + right;
-            numNeighbors++;
-            sumNeighbors += right;
-        } 
-        if (keyList.getSelectedIndex() > 1)
-        {
-            int down = getPixel(column, row+1, image_pixels).getAverage();
-            key += "_" + down;
-            numNeighbors++;
-            sumNeighbors += down;
+            Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, 
+                    "Tried to apply optimized interpolation key in the wrong data structure");
         }
-        if (keyList.getSelectedIndex() > 2)
+        else
         {
-            int left = getPixel(column - 1, row, image_pixels).getAverage();
-            key += "_" + left;
-            numNeighbors++;
-            sumNeighbors += left;
-        }
-        if (keyList.getSelectedIndex() > 3)
-        {
-            int up = getPixel(column, row-1, image_pixels).getAverage();
-            key += "_" + up;
-            numNeighbors++;
-            sumNeighbors += up;
-        }
-        if (InterpolateGapsCheckbox.isSelected())
-        {
-            double neighbor_mean = sumNeighbors / numNeighbors;
-            key += "*" + (double)Math.round(neighbor_mean * 100000d) / 100000d;
+                if (keyList.getSelectedIndex() > 0)
+            {
+                int right = getPixel(column + 1, row, image_pixels).getAverage();
+                key += "_" + right;
+                numNeighbors++;
+                sumNeighbors += right;
+            } 
+            if (keyList.getSelectedIndex() > 1)
+            {
+                int down = getPixel(column, row+1, image_pixels).getAverage();
+                key += "_" + down;
+                numNeighbors++;
+                sumNeighbors += down;
+            }
+            if (keyList.getSelectedIndex() > 2)
+            {
+                int left = getPixel(column - 1, row, image_pixels).getAverage();
+                key += "_" + left;
+                numNeighbors++;
+                sumNeighbors += left;
+            }
+            if (keyList.getSelectedIndex() > 3)
+            {
+                int up = getPixel(column, row-1, image_pixels).getAverage();
+                key += "_" + up;
+                numNeighbors++;
+                sumNeighbors += up;
+            }
+        
+            if (InterpolateGapsCheckbox.isSelected())
+            {
+                double neighbor_mean = sumNeighbors / numNeighbors;
+                key += "*" + (double)Math.round(neighbor_mean * 100000d) / 100000d;
+            }
         }
         return key;
     }
     
     private void train2NeighborKey()
-    {
+    {        
         image_pixels = toBufferedImage(selected_image);
         //System.out.println(keyList.getSelectedIndex());
-
+        if (keyList.getSelectedItem().equals("Optimized Interpolate"))
+        {
+            trainForOptimizedInterpolation();
+            return;
+        }
+        
         for (int row = 1; row < image_pixels.getHeight()-1; row++)
         {
             for (int column = 1; column < image_pixels.getWidth()-1; column++)
@@ -3049,6 +3303,22 @@ public class ImageFilters extends JPanel implements MouseListener {
     @Override
     public void mouseExited(MouseEvent e) {
     }
+    
+    
+    class Pair implements Comparable {
+        
+        public double key;
+        public String value;
+
+        @Override
+        public int compareTo(Object o) {
+            Pair p = (Pair)o;
+            return new Double(this.key).compareTo(p.key);
+        }
+        
+    }
+    
+    
     
     class Pixel {
         
