@@ -39,8 +39,9 @@ import java.util.Scanner;
 import javax.imageio.ImageIO;
 import javax.swing.JComboBox;
 import imagefilters.ColorChooserButton.ColorChangedListener;
-import java.awt.Point;
 import java.awt.Polygon;
+import java.awt.event.KeyEvent;
+import java.awt.event.KeyListener;
 import java.util.Comparator;
 import java.util.HashSet;
 
@@ -58,7 +59,7 @@ import org.bytedeco.javacv.FFmpegFrameGrabber;
 */
 
 
-public class ImageFilters extends JPanel implements MouseListener {
+public class ImageFilters extends JPanel implements MouseListener, KeyListener {
 
     static int WINDOW_WIDTH = 1450;
     static int WINDOW_HEIGHT = 900;
@@ -99,6 +100,11 @@ public class ImageFilters extends JPanel implements MouseListener {
     JCheckBox ShowOutlinesCheckbox = new JCheckBox("Show Object Outlines");
     JCheckBox InterpolateGapsCheckbox = new JCheckBox("Interpolate Gaps");
     
+    JTextField filenameTextBox = new JTextField(10);
+    JLabel extensionLbl = new JLabel(".pmoc");
+    JButton saveButton = new JButton("Save");
+    JButton openButton = new JButton("Open");
+    
     Set<Point> ObjectSelection = new HashSet();
     
     BufferedImage[] bufferedImageFrames;
@@ -114,7 +120,7 @@ public class ImageFilters extends JPanel implements MouseListener {
     
     ArrayList<Polygon> polygons;
     Polygon selectedPolygon;
-    Point selectedVertex;
+    //Point selectedVertex;
     int selectedVertexIndex = -1;
     
     
@@ -397,6 +403,7 @@ public class ImageFilters extends JPanel implements MouseListener {
                 float[] hsvInput = new float[3];
                 Color.RGBtoHSB(color.getRed(),color.getGreen(), color.getBlue(), hsvInput);
                 float inputHue = hsvInput[0];
+                float inputSaturation = hsvInput[1];
                 Pixel pixel = getPixel(column,row,image_pixels);
                 int r = pixel.getRedValue();
                 int g = pixel.getGreenValue();
@@ -414,7 +421,7 @@ public class ImageFilters extends JPanel implements MouseListener {
                 v *= 1.245;
                 if (v > 1) v = 1;
                 if (v < 0) v = 0;
-                int rgb = Color.HSBtoRGB(inputHue,0.35f,v);
+                int rgb = Color.HSBtoRGB(inputHue,inputSaturation,v);
                 Color newColor = new Color(rgb);
                 double newAverage = (newColor.getRed() + newColor.getGreen() + newColor.getBlue()) / 3.0;
                 //System.out.println("old average: " + average);
@@ -1773,10 +1780,10 @@ public class ImageFilters extends JPanel implements MouseListener {
                 g.drawPolygon(p);
             }
         }
-        if (selectedVertex != null)
+        if (selectedVertexIndex != -1)
         {
             g.setColor(Color.RED);
-            g.fillOval(selectedVertex.x - 4, selectedVertex.y - 4, 9, 9);
+            g.fillOval(selectedPolygon.xpoints[selectedVertexIndex] - 4, selectedPolygon.ypoints[selectedVertexIndex] - 4, 9, 9);
         }
         
         if (selectedPolygon != null)
@@ -1998,7 +2005,9 @@ public class ImageFilters extends JPanel implements MouseListener {
         graphic.frame = new JFrame();
         graphic.filterList.setSelectedIndex(5);
         graphic.keyList.setSelectedIndex(0);
-
+        graphic.addKeyListener(graphic);
+        graphic.setFocusable(true);
+        graphic.requestFocus();
         JScrollPane scroll = new JScrollPane(graphic,
             JScrollPane.VERTICAL_SCROLLBAR_ALWAYS, 
             JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
@@ -2252,7 +2261,9 @@ public class ImageFilters extends JPanel implements MouseListener {
             } catch (IOException ex) {
                 //Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, ex);
             }
-        });        
+        }); 
+        
+         
         
         
         graphic.buttons.add(graphic.LoadImageButton);
@@ -2279,9 +2290,89 @@ public class ImageFilters extends JPanel implements MouseListener {
         //graphic.buttons2.add(graphic.AlternateRGButton);
         //graphic.buttons.add(graphic.SumBoundingBoxButton);
         //graphic.buttons2.add(graphic.TwoNeighboKeyButton);
-        graphic.buttons2.add(graphic.InterpolateGapsCheckbox);
-        graphic.buttons2.add(graphic.FillInBlanksBox);
-        graphic.buttons2.add(graphic.FirstMappingOnly);     
+        //graphic.buttons2.add(graphic.InterpolateGapsCheckbox);
+        //graphic.buttons2.add(graphic.FillInBlanksBox);
+        
+        
+        graphic.saveButton.addActionListener((ActionEvent e) -> {
+            String filename = graphic.filenameTextBox.getText() + ".pmoc";
+            try {
+                FileWriter fw = new FileWriter(new File(filename));
+                fw.append(graphic.polygons.size()+"\n");
+                for (Polygon p : graphic.polygons)
+                {
+                    fw.append(p.npoints+"\n");
+                    for (int i = 0; i < p.npoints; i++)
+                    {
+                        fw.append(p.xpoints[i] + " ");
+                        fw.append(p.ypoints[i] + " ");
+                    }
+                    fw.append("\n");
+                }
+                fw.close();
+            } catch (IOException ex) {
+                Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, ex);
+            }
+            
+        }); 
+        
+        graphic.openButton.addActionListener((ActionEvent e) -> {
+            JFileChooser fc = new JFileChooser();
+            fc.setCurrentDirectory(new File(System.getProperty("user.home") 
+                    + File.separator + "documents" 
+                    + File.separator + "trainingImages"));
+            int result = fc.showOpenDialog(graphic);
+            try
+            {
+                if (result == JFileChooser.CANCEL_OPTION)
+                {
+                    return;
+                }
+                if (fc.getSelectedFile() == null)
+                {
+                    return;
+                }
+                File selected_pmoc_file = fc.getSelectedFile();
+                Scanner reader = new Scanner(selected_pmoc_file);
+                int numPolygons = reader.nextInt();
+                graphic.polygons = new ArrayList();
+                
+                for (int i = 0; i < numPolygons; i++)
+                {
+                    int numVertices = reader.nextInt();
+                    Polygon poly = new Polygon();
+                    for (int j = 0; j < numVertices; j++)
+                    {
+                        int xcoord = reader.nextInt();
+                        int ycoord = reader.nextInt();
+                        poly.addPoint(xcoord, ycoord);
+                    }
+                    graphic.polygons.add(poly);
+                }
+                graphic.repaint();
+            }
+            catch (Exception ex)
+            {
+                Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, e);
+                System.out.println("There was an error with the file that was selected (was it not a .pmoc?)");
+            }
+        });
+        
+        graphic.buttons2.add(graphic.filenameTextBox);
+        graphic.buttons2.add(graphic.extensionLbl);
+        graphic.buttons2.add(graphic.saveButton);
+        graphic.buttons2.add(graphic.openButton);
+        
+        
+        graphic.buttons2.add(graphic.FirstMappingOnly);    
+        
+        graphic.toolList.addActionListener (new ActionListener () {
+            public void actionPerformed(ActionEvent e) {
+                graphic.requestFocus();
+            }
+        });
+        
+        
         graphic.buttons2.add(graphic.toolList);
         //graphic.buttons.add(graphic.SplitVideoFramesButton);
         //graphic.buttons.add(graphic.ColorizeFramesButton);
@@ -3570,13 +3661,13 @@ public class ImageFilters extends JPanel implements MouseListener {
                 selectedPolygon = clickedObject;
                 int x = clickedObject.xpoints[clickedObject.npoints-1];
                 int y = clickedObject.ypoints[clickedObject.npoints-1];
-                selectedVertex = new Point(x,y);
+                //selectedVertex = new Point(x,y);
                 selectedVertexIndex = clickedObject.npoints-1;
             }
             else
             {
                 selectedVertexIndex = -1;
-                selectedVertex = null;
+                //selectedVertex = null;
                 selectedPolygon = null;
             }
             repaint();
@@ -3588,7 +3679,7 @@ public class ImageFilters extends JPanel implements MouseListener {
             {
                 int x = selectedPolygon.xpoints[index];
                 int y = selectedPolygon.ypoints[index];
-                selectedVertex = new Point(x,y);
+                //selectedVertex = new Point(x,y);
                 selectedVertexIndex = index;
             }
             else
@@ -3599,7 +3690,7 @@ public class ImageFilters extends JPanel implements MouseListener {
                     polygons.add(selectedPolygon);
                 }
                 selectedPolygon.addPoint(e.getX(), e.getY());
-                selectedVertex = new Point(e.getX(), e.getY());
+                //selectedVertex = new Point(e.getX(), e.getY());
                 selectedVertexIndex = selectedPolygon.npoints-1;
             }
             repaint();
@@ -3620,6 +3711,7 @@ public class ImageFilters extends JPanel implements MouseListener {
             repaint();
         }
         */
+        this.requestFocus();
     }
 
     @Override
@@ -3801,6 +3893,75 @@ public class ImageFilters extends JPanel implements MouseListener {
             Pixel pix = getPixel(p.x,p.y,image_pixels);
             pix.setRGB(0,0,255);
         }
+    }
+
+    @Override
+    public void keyTyped(KeyEvent e) {
+    }
+
+    @Override
+    public void keyPressed(KeyEvent e) {
+        if (selectedVertexIndex == -1)
+        {
+            return;
+        }
+        if (e.getKeyCode() == KeyEvent.VK_UP)
+        {
+            //System.out.println("Pressed UP");
+            selectedPolygon.ypoints[selectedVertexIndex]--;
+            //selectedVertex.y = selectedPolygon.ypoints[selectedVertexIndex];
+
+        }
+        if (e.getKeyCode() == KeyEvent.VK_DOWN)
+        {
+            //System.out.println("Pressed DOWN");
+            selectedPolygon.ypoints[selectedVertexIndex]++;
+            //selectedVertex.y = selectedPolygon.ypoints[selectedVertexIndex];
+        }
+        if (e.getKeyCode() == KeyEvent.VK_RIGHT)
+        {
+            //System.out.println("Pressed RIGHT");
+            selectedPolygon.xpoints[selectedVertexIndex]++;
+            //selectedVertex.x = selectedPolygon.xpoints[selectedVertexIndex];
+        }
+        if (e.getKeyCode() == KeyEvent.VK_LEFT)
+        {
+            //System.out.println("Pressed LEFT");
+            selectedPolygon.xpoints[selectedVertexIndex]--;
+            //selectedVertex.x = selectedPolygon.xpoints[selectedVertexIndex];
+        }
+        if (e.getKeyCode() == KeyEvent.VK_BACK_SPACE)
+        {
+            System.out.println("Pressed Delete");
+            if (selectedPolygon.npoints == 1)
+            {
+                polygons.remove(selectedPolygon);
+                selectedPolygon = null;
+                selectedVertexIndex = -1;
+                repaint();
+                return;
+            }
+            if (selectedPolygon == null)
+            {
+                return;
+            }
+            for (int i = selectedVertexIndex+1; i < selectedPolygon.npoints; i++)
+            {
+                selectedPolygon.xpoints[i-1] = selectedPolygon.xpoints[i];
+                selectedPolygon.ypoints[i-1] = selectedPolygon.ypoints[i];
+            }
+            selectedPolygon.npoints--;
+
+            if (selectedPolygon.npoints-1 < selectedVertexIndex)
+            {
+                selectedVertexIndex--;
+            }
+        }
+        repaint();
+    }
+
+    @Override
+    public void keyReleased(KeyEvent e) {
     }
 
     
