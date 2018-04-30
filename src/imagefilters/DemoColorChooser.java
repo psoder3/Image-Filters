@@ -14,7 +14,6 @@ public class DemoColorChooser {
     {
         this.imageFilters = imageFilters;
         chooser = new JColorChooser();
-        chooser.setColor(Color.BLUE);
         chooser.getSelectionModel().addChangeListener(new ChangeListener() {
             @Override
             public void stateChanged(ChangeEvent arg0) {
