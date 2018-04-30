@@ -52,7 +52,7 @@ import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTextField;
 import javax.swing.Timer;
-import org.bytedeco.javacv.FFmpegFrameGrabber;
+//import org.bytedeco.javacv.FFmpegFrameGrabber;
 
 
 /*
@@ -64,7 +64,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
 
     static int WINDOW_WIDTH = 1450;
     static int WINDOW_HEIGHT = 900;
-    int scale = 1;
+    double scale = 1;
     JButton LoadImageButton = new JButton("Load Image");
     JButton LoadTrainingImageButton = new JButton("Load Training Image");
     JButton LoadSetImagesButton = new JButton("Load Training Set");
@@ -391,6 +391,22 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
         }
     }
     
+    public boolean containedByAnotherPolygon(int x, int y)
+    {
+        for (Polygon p : polygons)
+        {
+            if (p.equals(selectedPolygon))
+            {
+                continue;
+            }
+            if (p.contains(x, y))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+    
     public void colorizePolygon(Color color)
     {
         int counterOff = 0;
@@ -398,7 +414,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
         {
             for (int column = 0; column < image_pixels.getWidth(); column++)
             {
-                if (selectedPolygon != null && !selectedPolygon.contains(column,row))
+                if (selectedPolygon != null && (!selectedPolygon.contains(column,row) || containedByAnotherPolygon(column, row)))
                 {
                     continue;
                 }
@@ -2911,7 +2927,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
         int numThreads = 20;
         int numFramesPerThread = (lastFrame/numThreads)+1;
         threadsComplete = 0;
-        try
+       /* try
         {
             FFmpegFrameGrabber g = new FFmpegFrameGrabber(filename);
             g.start();
@@ -2944,7 +2960,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
             Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, ex);
 
         }
-        
+        */
         while (threadsComplete < numThreads)
         {
             try {
@@ -2993,7 +3009,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
             
             System.out.println("Video will start in 10 seconds. Please expand/pull top of output window upward");
             Thread.sleep(10000);
-            try
+           /* try
             {
                 if (fc.getSelectedFile() == null)
                 {
@@ -3051,6 +3067,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
                 Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, ex);
                 
             }
+            */
         }
         catch (InterruptedException ex)
         {
@@ -3058,6 +3075,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
             Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, ex);
 
         }
+            
     }
     
     private void splitVideoIntoFrames() {
@@ -3065,7 +3083,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
         fc.setCurrentDirectory(new File(System.getProperty("user.home") 
                 + File.separator + "documents"));
         fc.showOpenDialog(ImageFilters.this);
-        try
+     /*   try
         {
             if (fc.getSelectedFile() == null)
             {
@@ -3096,7 +3114,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
             System.out.println("There was an error with the file that was selected");
             Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, ex);
 
-        }
+        }*/
     }
     
     private void addSoundToVideo()
@@ -3702,8 +3720,8 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
        
     @Override
     public void mouseClicked(MouseEvent e) {
-        int clickedX = e.getX()/scale;
-        int clickedY = e.getY()/scale;
+        int clickedX = (int)(e.getX()/scale);
+        int clickedY = (int)(e.getY()/scale);
         if (toolList.getSelectedItem().equals("Magic Select"))
         {
             magicSelect(clickedX, clickedY);
@@ -3976,9 +3994,9 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
             // zoom out
             System.out.println("Zoom out");
             scale /= 2;
-            if (scale < 1)
+            if (scale < .5)
             {
-                scale = 1;
+                scale = .5;
             }
             repaint();
         }
@@ -3988,7 +4006,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
         {
             return;
         }
-        if (e.getKeyCode() == KeyEvent.VK_UP)
+        if (e.getKeyCode() == KeyEvent.VK_W)
         {
             //System.out.println("Pressed UP");
             selectedPolygon.ypoints[selectedVertexIndex]--;
@@ -3996,7 +4014,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
             repaint();
             return;
         }
-        if (e.getKeyCode() == KeyEvent.VK_DOWN)
+        if (e.getKeyCode() == KeyEvent.VK_S)
         {
             //System.out.println("Pressed DOWN");
             selectedPolygon.ypoints[selectedVertexIndex]++;
@@ -4004,7 +4022,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
             repaint();
             return;
         }
-        if (e.getKeyCode() == KeyEvent.VK_RIGHT)
+        if (e.getKeyCode() == KeyEvent.VK_D)
         {
             //System.out.println("Pressed RIGHT");
             selectedPolygon.xpoints[selectedVertexIndex]++;
@@ -4012,7 +4030,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
             repaint();
             return;
         }
-        if (e.getKeyCode() == KeyEvent.VK_LEFT)
+        if (e.getKeyCode() == KeyEvent.VK_A)
         {
             //System.out.println("Pressed LEFT");
             selectedPolygon.xpoints[selectedVertexIndex]--;
