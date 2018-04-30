@@ -11,20 +11,27 @@ import java.awt.Color;
     import javax.swing.ImageIcon;
     import javax.swing.JButton;
     import javax.swing.JColorChooser;
+import javax.swing.event.ChangeEvent;
+import javax.swing.event.ChangeListener;
 
     public class ColorChooserButton extends JButton {
 
         private Color current;
+        private ImageFilters imgFilters;
 
-        public ColorChooserButton(Color c) {
+        public ColorChooserButton(Color c, ImageFilters imgFilters) {
+            this.imgFilters = imgFilters;
             setSelectedColor(c); 
+
             addActionListener(new ActionListener() {
                 @Override
                 public void actionPerformed(ActionEvent arg0) {
-                    Color newColor = JColorChooser.showDialog(null, "Choose a color", current);
+                    DemoColorChooser dcc = new DemoColorChooser(imgFilters);
+                    Color newColor = dcc.chooser.getColor();
                     setSelectedColor(newColor);
                 }
             });
+            
         }
 
         public Color getSelectedColor() {
