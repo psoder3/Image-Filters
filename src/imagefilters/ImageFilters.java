@@ -2384,6 +2384,8 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
                 String name = selected_pmoc_file.getName();
                 graphic.selected_file = new File(name.substring(0,name.length()-5) + ".png");
                 graphic.selected_image = ImageIO.read(graphic.selected_file);
+                graphic.image_pixels = toBufferedImage(graphic.selected_image);
+
                 graphic.repaint();
             }
             catch (Exception ex)
@@ -2633,6 +2635,8 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
             }
             selected_file = fc.getSelectedFile();
             selected_image = ImageIO.read(selected_file);
+            image_pixels = toBufferedImage(selected_image);
+
             this.setPreferredSize(new Dimension(selected_image.getWidth(null),selected_image.getHeight(null)));
             InvertButton.setEnabled(true);
             GrayScaleButton.setEnabled(true);
