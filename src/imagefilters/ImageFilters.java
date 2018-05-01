@@ -2365,7 +2365,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
                 }
                 File selected_pmoc_file = fc.getSelectedFile();
                 Scanner reader = new Scanner(selected_pmoc_file);
-                int scale = reader.nextInt();
+                double scale = reader.nextDouble();
                 int numPolygons = reader.nextInt();
                 graphic.polygons = new ArrayList();
                 
