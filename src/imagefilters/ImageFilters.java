@@ -416,7 +416,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
                 int pixelR = pixel.getRedValue();
                 int pixelG = pixel.getGreenValue();
                 int pixelB = pixel.getBlueValue();
-                int average = (int)(((pixelR+pixelG+pixelB)/3.0)+.5);
+                int average = (int)(((pixelR+pixelG+pixelB)/3.0));
                 pixelR = average;
                 pixelG = average;
                 pixelB = average;
@@ -440,191 +440,210 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
                 int newRed = newColor.getRed()+difference;
                 int newGreen = newColor.getGreen()+difference;
                 int newBlue = newColor.getBlue()+difference;
-                if ((int)newAverage != average)
+                
+                if (row > 200)
                 {
-                    if (row > 200)
-                    {
-                        //System.out.println("Row big");
-                    }
-                    
-                    // Red is above
-                    if (newRed > 255)
-                    {
-                        int surplusRed = newRed - 255;
-                        newRed = 255;
+                    //System.out.println("Row big");
+                }
 
-                        newGreen += surplusRed/2;
-                        newBlue += surplusRed/2;
-                        if (newGreen > 255)
-                        {
-                            int surplusGreen = newGreen - 255;
-                            newGreen = 255;
-                            newBlue += surplusGreen;
-                        }
-                        else if (newBlue > 255)
-                        {
-                            int surplusBlue = newBlue - 255;
-                            newBlue = 255;
-                            newGreen += surplusBlue;
-                        }
-                        
-                    } 
-                    // Red is below
-                    else if (newRed < 0)
-                    {
-                        int debtRed = 0-newRed;
-                        newRed = 0;
-                        
-                        newGreen -= debtRed/2;
-                        newBlue -= debtRed/2;
-                        if (newGreen < 0)
-                        {
-                            int debtGreen = 0 - newGreen;
-                            newGreen = 0;
-                            newBlue -= debtGreen;
-                        }
-                        else if (newBlue < 0)
-                        {
-                            int debtBlue = 0 - newBlue;
-                            newBlue = 0;
-                            newGreen -= debtBlue;
-                        }
-                        
-                    }
-                    
-                    // Green is above
-                    else if (newGreen > 255)
+                // Red is above
+                if (newRed > 255)
+                {
+                    int surplusRed = newRed - 255;
+                    newRed = 255;
+
+                    newGreen += surplusRed/2;
+                    newBlue += surplusRed/2;
+                    if (newGreen > 255)
                     {
                         int surplusGreen = newGreen - 255;
                         newGreen = 255;
-
-                        newRed += surplusGreen/2;
-                        newBlue += surplusGreen/2;
-                        if (newRed > 255)
-                        {
-                            int surplusRed = newRed - 255;
-                            newRed = 255;
-                            newBlue += surplusRed;
-                        }
-                        else if (newBlue > 255)
-                        {
-                            int surplusBlue = newBlue - 255;
-                            newBlue = 255;
-                            newRed += surplusBlue;
-                        }
-                        
+                        newBlue += surplusGreen;
                     }
-                    // Green is below
-                    else if (newGreen < 0)
-                    {
-                        int debtGreen = 0-newGreen;
-                        newGreen = 0;
-                        
-                        newRed -= debtGreen/2;
-                        newBlue -= debtGreen/2;
-                        if (newRed < 0)
-                        {
-                            int debtRed = 0 - newRed;
-                            newRed = 0;
-                            newBlue -= debtRed;
-                        }
-                        else if (newBlue < 0)
-                        {
-                            int debtBlue = 0 - newBlue;
-                            newBlue = 0;
-                            newRed -= debtBlue;
-                        }
-                        
-                    }
-                    
-                    
-                    // Blue is above
                     else if (newBlue > 255)
                     {
                         int surplusBlue = newBlue - 255;
                         newBlue = 255;
-
-                        newGreen += surplusBlue/2;
-                        newRed += surplusBlue/2;
-                        if (newGreen > 255)
-                        {
-                            int surplusGreen = newGreen - 255;
-                            newGreen = 255;
-                            newRed += surplusGreen;
-                        }
-                        else if (newRed > 255)
-                        {
-                            int surplusRed = newRed - 255;
-                            newRed = 255;
-                            newGreen += surplusRed;
-                        }
-                        
+                        newGreen += surplusBlue;
                     }
-                    // Blue is below
+
+                } 
+                // Red is below
+                else if (newRed < 0)
+                {
+                    int debtRed = 0-newRed;
+                    newRed = 0;
+
+                    newGreen -= debtRed/2;
+                    newBlue -= debtRed/2;
+                    if (newGreen < 0)
+                    {
+                        int debtGreen = 0 - newGreen;
+                        newGreen = 0;
+                        newBlue -= debtGreen;
+                    }
                     else if (newBlue < 0)
                     {
-                        int debtBlue = 0-newBlue;
+                        int debtBlue = 0 - newBlue;
                         newBlue = 0;
-                        
-                        newGreen -= debtBlue/2;
-                        newRed -= debtBlue/2;
-                        if (newGreen < 0)
-                        {
-                            int debtGreen = 0 - newGreen;
-                            newGreen = 0;
-                            newRed -= debtGreen;
-                        }
-                        else if (newRed < 0)
-                        {
-                            int debtRed = 0 - newRed;
-                            newRed = 0;
-                            newGreen -= debtRed;
-                        }
-                        
+                        newGreen -= debtBlue;
                     }
-                    
-                    if (newRed > 258 || newRed < -3 || newGreen > 258 || newGreen < -3 || newBlue > 258 || newBlue < -3)
+
+                }
+
+                // Green is above
+                else if (newGreen > 255)
+                {
+                    int surplusGreen = newGreen - 255;
+                    newGreen = 255;
+
+                    newRed += surplusGreen/2;
+                    newBlue += surplusGreen/2;
+                    if (newRed > 255)
                     {
-                        System.out.println("Something very not okay");
-                    }
-                    else if (newRed > 255)
-                    {
+                        int surplusRed = newRed - 255;
                         newRed = 255;
-                    }
-                    else if (newRed < 0)
-                    {
-                        newRed = 0;
-                    }
-                    else if (newGreen > 255)
-                    {
-                        newGreen = 255;
-                    }
-                    else if (newGreen < 0)
-                    {
-                        newGreen = 0;
+                        newBlue += surplusRed;
                     }
                     else if (newBlue > 255)
                     {
+                        int surplusBlue = newBlue - 255;
                         newBlue = 255;
+                        newRed += surplusBlue;
+                    }
+
+                }
+                // Green is below
+                else if (newGreen < 0)
+                {
+                    int debtGreen = 0-newGreen;
+                    newGreen = 0;
+
+                    newRed -= debtGreen/2;
+                    newBlue -= debtGreen/2;
+                    if (newRed < 0)
+                    {
+                        int debtRed = 0 - newRed;
+                        newRed = 0;
+                        newBlue -= debtRed;
                     }
                     else if (newBlue < 0)
                     {
+                        int debtBlue = 0 - newBlue;
                         newBlue = 0;
+                        newRed -= debtBlue;
                     }
-                    pixel.setRGB(newRed, newGreen, newBlue);
 
+                }
+
+
+                // Blue is above
+                else if (newBlue > 255)
+                {
+                    int surplusBlue = newBlue - 255;
+                    newBlue = 255;
+
+                    newGreen += surplusBlue/2;
+                    newRed += surplusBlue/2;
+                    if (newGreen > 255)
+                    {
+                        int surplusGreen = newGreen - 255;
+                        newGreen = 255;
+                        newRed += surplusGreen;
+                    }
+                    else if (newRed > 255)
+                    {
+                        int surplusRed = newRed - 255;
+                        newRed = 255;
+                        newGreen += surplusRed;
+                    }
+
+                }
+                // Blue is below
+                else if (newBlue < 0)
+                {
+                    int debtBlue = 0-newBlue;
+                    newBlue = 0;
+
+                    newGreen -= debtBlue/2;
+                    newRed -= debtBlue/2;
+                    if (newGreen < 0)
+                    {
+                        int debtGreen = 0 - newGreen;
+                        newGreen = 0;
+                        newRed -= debtGreen;
+                    }
+                    else if (newRed < 0)
+                    {
+                        int debtRed = 0 - newRed;
+                        newRed = 0;
+                        newGreen -= debtRed;
+                    }
+
+                }
+
+                if (newRed > 258 || newRed < -3 || newGreen > 258 || newGreen < -3 || newBlue > 258 || newBlue < -3)
+                {
+                    System.out.println("Something very not okay");
+                }
+                else if (newRed > 255)
+                {
+                    newRed = 255;
+                }
+                else if (newRed < 0)
+                {
+                    newRed = 0;
+                }
+                else if (newGreen > 255)
+                {
+                    newGreen = 255;
+                }
+                else if (newGreen < 0)
+                {
+                    newGreen = 0;
+                }
+                else if (newBlue > 255)
+                {
+                    newBlue = 255;
+                }
+                else if (newBlue < 0)
+                {
+                    newBlue = 0;
                 }
                 newAverage = (newRed + newGreen + newBlue)/3;
                 if ((int)newAverage > average)
                 {
                     //System.out.println("new greater than old");
+                    if (newRed > 0) newRed--;
+                    if (newGreen > 0) newGreen--;
+                    if (newBlue > 0) newBlue--;
+                    
+                }
+                else if ((int)newAverage < average)
+                {
+                    //System.out.println("new less than old" + (newAverage - average));
+                    if (newRed < 255) newRed++;
+                    if (newGreen < 255) newGreen++;
+                    if (newBlue < 255) newBlue++;
+                                       
+                }
+                newAverage = (newRed + newGreen + newBlue)/3;
+                if ((int)newAverage > average)
+                {
+                    //System.out.println("new greater than old");
+                    
                     counterOff++;
                 }
                 else if ((int)newAverage < average)
                 {
                     //System.out.println("new less than old" + (newAverage - average));
+                    
                     counterOff++;                    
                 }
+                pixel.setRGB(newRed, newGreen, newBlue);
+
+                
+                
             }
             //System.out.println();
         }
