@@ -39,6 +39,7 @@ import java.util.Scanner;
 import javax.imageio.ImageIO;
 import javax.swing.JComboBox;
 import imagefilters.ColorChooserButton.ColorChangedListener;
+import java.awt.BasicStroke;
 import java.awt.Polygon;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
@@ -52,7 +53,7 @@ import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTextField;
 import javax.swing.Timer;
-//import org.bytedeco.javacv.FFmpegFrameGrabber;
+import org.bytedeco.javacv.FFmpegFrameGrabber;
 
 
 /*
@@ -65,6 +66,9 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
     static int WINDOW_WIDTH = 1450;
     static int WINDOW_HEIGHT = 900;
     double scale = 1;
+    int leftRight = 0;
+    int scrollAmount = 10;
+    int upDown = 0;
     JButton LoadImageButton = new JButton("Load Image");
     JButton LoadTrainingImageButton = new JButton("Load Training Image");
     JButton LoadSetImagesButton = new JButton("Load Training Set");
@@ -391,22 +395,6 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
         }
     }
     
-    public boolean containedByAnotherPolygon(int x, int y)
-    {
-        for (Polygon p : polygons)
-        {
-            if (p.equals(selectedPolygon))
-            {
-                continue;
-            }
-            if (p.contains(x, y))
-            {
-                return true;
-            }
-        }
-        return false;
-    }
-    
     public void colorizePolygon(Color color)
     {
         int counterOff = 0;
@@ -414,7 +402,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
         {
             for (int column = 0; column < image_pixels.getWidth(); column++)
             {
-                if (selectedPolygon != null && (!selectedPolygon.contains(column,row) || containedByAnotherPolygon(column, row)))
+                if (selectedPolygon != null && !selectedPolygon.contains(column,row))
                 {
                     continue;
                 }
@@ -1786,6 +1774,15 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
         try {
             AffineTransform scaleMatrix = new AffineTransform();
             scaleMatrix.scale(scale, scale);
+            
+            int screenWidth = frame.getBounds().width;
+            int screenHeight = frame.getBounds().height;
+            int imgX = screenWidth/2 - selected_image.getWidth(null)/2;
+            int imgY = screenHeight/2 - selected_image.getHeight(null)/2;
+
+            g2d.setStroke(new BasicStroke((int)(1/scale)));
+
+            scaleMatrix.translate(leftRight*-scrollAmount, upDown*-scrollAmount);
 
             g2d.setTransform(scaleMatrix);
         
@@ -1809,7 +1806,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
             if (selectedVertexIndex != -1)
             {
                 g.setColor(Color.RED);
-                g.fillOval(selectedPolygon.xpoints[selectedVertexIndex] - 4, selectedPolygon.ypoints[selectedVertexIndex] - 4, 9, 9);
+                g.fillOval(selectedPolygon.xpoints[selectedVertexIndex] - (int)(4/scale), selectedPolygon.ypoints[selectedVertexIndex] - (int)(4/scale), (int)(9/scale), (int)(9/scale));
             }
 
             if (selectedPolygon != null)
@@ -1817,7 +1814,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
                 g.setColor(Color.RED);
                 for (int i = 0; i < selectedPolygon.npoints; i++)
                 {
-                    g.fillOval(selectedPolygon.xpoints[i] - 2, selectedPolygon.ypoints[i] - 2, 5, 5);
+                    g.fillOval(selectedPolygon.xpoints[i] - (int)(2/scale), selectedPolygon.ypoints[i] - (int)(2/scale), (int)(5/scale), (int)(5/scale));
                 }
             }
 
@@ -2036,10 +2033,13 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
         graphic.addKeyListener(graphic);
         graphic.setFocusable(true);
         graphic.requestFocus();
-        JScrollPane scroll = new JScrollPane(graphic,
-            JScrollPane.VERTICAL_SCROLLBAR_ALWAYS, 
-            JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
-        graphic.frame.getContentPane().add(scroll);
+        //JScrollPane scroll = new JScrollPane(graphic,
+        //    JScrollPane.VERTICAL_SCROLLBAR_ALWAYS, 
+        //    JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+        //graphic.frame.getContentPane().add(scroll);
+        
+        // I substituted above code with below code when I made my own scrolling functionality
+        graphic.frame.getContentPane().add(graphic);
 
         graphic.frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         graphic.frame.setSize(WINDOW_WIDTH, WINDOW_HEIGHT + 100);
@@ -2093,70 +2093,70 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
             graphic.repaint();
         });
         graphic.InvertButton.addActionListener((ActionEvent e) -> {
-            graphic.image_pixels = toBufferedImage(graphic.selected_image);
+            graphic.image_pixels = graphic.toBufferedImage(graphic.selected_image);
             graphic.ResetButton.setEnabled(true);
             graphic.InvertColors();
             graphic.repaint();
         });
         graphic.GrayScaleButton.addActionListener((ActionEvent e) -> {
-            graphic.image_pixels = toBufferedImage(graphic.selected_image);
+            graphic.image_pixels = graphic.toBufferedImage(graphic.selected_image);
             graphic.ResetButton.setEnabled(true);
             graphic.ConvertToGrayScale();
             graphic.repaint();
         });
         graphic.StepColorsButton.addActionListener((ActionEvent e) -> {
-            graphic.image_pixels = toBufferedImage(graphic.selected_image);
+            graphic.image_pixels = graphic.toBufferedImage(graphic.selected_image);
             graphic.ResetButton.setEnabled(true);
             graphic.StepColors();
             graphic.repaint();
         });
         graphic.EmbossButton.addActionListener((ActionEvent e) -> {
-            graphic.image_pixels = toBufferedImage(graphic.selected_image);
+            graphic.image_pixels = graphic.toBufferedImage(graphic.selected_image);
             graphic.ResetButton.setEnabled(true);
             graphic.EmbossImage();
             graphic.repaint();
         });
         graphic.BlurButton.addActionListener((ActionEvent e) -> {
-            graphic.image_pixels = toBufferedImage(graphic.selected_image);
+            graphic.image_pixels = graphic.toBufferedImage(graphic.selected_image);
             graphic.ResetButton.setEnabled(true);
             graphic.BlurImage();
             graphic.repaint();
         });
         graphic.RedButton.addActionListener((ActionEvent e) -> {
-            graphic.image_pixels = toBufferedImage(graphic.selected_image);
+            graphic.image_pixels = graphic.toBufferedImage(graphic.selected_image);
             graphic.ResetButton.setEnabled(true);
             graphic.ColorizeRed();
             graphic.repaint();
         });
         graphic.GreenButton.addActionListener((ActionEvent e) -> {
-            graphic.image_pixels = toBufferedImage(graphic.selected_image);
+            graphic.image_pixels = graphic.toBufferedImage(graphic.selected_image);
             graphic.ResetButton.setEnabled(true);
             graphic.ColorizeGreen();
             graphic.repaint();
         });
         graphic.BlueButton.addActionListener((ActionEvent e) -> {
-            graphic.image_pixels = toBufferedImage(graphic.selected_image);
+            graphic.image_pixels = graphic.toBufferedImage(graphic.selected_image);
             graphic.ResetButton.setEnabled(true);
             graphic.ColorizeBlue();
             graphic.repaint();
         });
         
         graphic.ColorizeButton.addActionListener((ActionEvent e) -> {
-            graphic.image_pixels = toBufferedImage(graphic.selected_image);
+            graphic.image_pixels = graphic.toBufferedImage(graphic.selected_image);
             graphic.ResetButton.setEnabled(true);
             graphic.Colorize();
             graphic.repaint();
         });
         
         graphic.randomValuesButton.addActionListener((ActionEvent e) -> {
-            graphic.image_pixels = toBufferedImage(graphic.selected_image);
+            graphic.image_pixels = graphic.toBufferedImage(graphic.selected_image);
             graphic.ResetButton.setEnabled(true);
             graphic.RandomValues();
             graphic.repaint();
         });
         
         graphic.BlackWhiteButton.addActionListener((ActionEvent e) -> {
-            graphic.image_pixels = toBufferedImage(graphic.selected_image);
+            graphic.image_pixels = graphic.toBufferedImage(graphic.selected_image);
             graphic.ResetButton.setEnabled(true);
             //graphic.image_copy = getImageCopy();
             graphic.BlackWhite(90);
@@ -2177,7 +2177,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
             graphic.repaint();
         });
         graphic.AlternateRGButton.addActionListener((ActionEvent e) -> {
-            graphic.image_pixels = toBufferedImage(graphic.selected_image);
+            graphic.image_pixels = graphic.toBufferedImage(graphic.selected_image);
             //graphic.image_copy = getImageCopy();
 
             
@@ -2205,14 +2205,14 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
         });
         
         graphic.SumBoundingBoxButton.addActionListener((ActionEvent e) -> {
-            graphic.image_pixels = toBufferedImage(graphic.selected_image);
+            graphic.image_pixels = graphic.toBufferedImage(graphic.selected_image);
             graphic.ResetButton.setEnabled(true);
             graphic.SumBoundingBoxColorize();
             graphic.repaint();
         });
         
         graphic.TwoNeighboKeyButton.addActionListener((ActionEvent e) -> {
-            graphic.image_pixels = toBufferedImage(graphic.selected_image);
+            graphic.image_pixels = graphic.toBufferedImage(graphic.selected_image);
             graphic.ResetButton.setEnabled(true);
             graphic.NeighborKeyColorize(graphic.image_pixels);
             graphic.repaint();
@@ -2230,7 +2230,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
             graphic.assembleVideoFromFrames();
         });*/
         graphic.AsciiFilterButton.addActionListener((ActionEvent e) -> {
-            graphic.image_pixels = toBufferedImage(graphic.selected_image);
+            graphic.image_pixels = graphic.toBufferedImage(graphic.selected_image);
             String textImage = graphic.AsciiFilter();
             graphic.textToImage(textImage, "testImage.png");
 
@@ -2245,21 +2245,21 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
         });
         
         graphic.PixelateButton.addActionListener((ActionEvent e) -> {
-            graphic.image_pixels = toBufferedImage(graphic.selected_image);
+            graphic.image_pixels = graphic.toBufferedImage(graphic.selected_image);
             graphic.pixelate();
             graphic.ResetButton.setEnabled(true);
             graphic.repaint();
             
         });
         graphic.Mosaic1Button.addActionListener((ActionEvent e) -> {
-            graphic.image_pixels = toBufferedImage(graphic.selected_image);
+            graphic.image_pixels = graphic.toBufferedImage(graphic.selected_image);
             graphic.mosaic1();
             graphic.mosaicType = "Mosaic1";
             graphic.ResetButton.setEnabled(true);
             graphic.repaint();
         });
         graphic.Mosaic2Button.addActionListener((ActionEvent e) -> {
-            graphic.image_pixels = toBufferedImage(graphic.selected_image);
+            graphic.image_pixels = graphic.toBufferedImage(graphic.selected_image);
             graphic.mosaic2();
             graphic.mosaicType = "Mosaic2";
             graphic.ResetButton.setEnabled(true);
@@ -2384,7 +2384,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
                 String name = selected_pmoc_file.getName();
                 graphic.selected_file = new File(name.substring(0,name.length()-5) + ".png");
                 graphic.selected_image = ImageIO.read(graphic.selected_file);
-                graphic.image_pixels = toBufferedImage(graphic.selected_image);
+                graphic.image_pixels = graphic.toBufferedImage(graphic.selected_image);
 
                 graphic.repaint();
             }
@@ -2420,7 +2420,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
         graphic.colorChooser.addColorChangedListener(new ColorChangedListener() {
             @Override
             public void colorChanged(Color newColor) {
-                    graphic.image_pixels = toBufferedImage(graphic.selected_image);
+                    graphic.image_pixels = graphic.toBufferedImage(graphic.selected_image);
 
                     // do something with newColor ...
                     String selected_filter = (String)graphic.filterList.getSelectedItem();
@@ -2635,8 +2635,6 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
             }
             selected_file = fc.getSelectedFile();
             selected_image = ImageIO.read(selected_file);
-            image_pixels = toBufferedImage(selected_image);
-
             this.setPreferredSize(new Dimension(selected_image.getWidth(null),selected_image.getHeight(null)));
             InvertButton.setEnabled(true);
             GrayScaleButton.setEnabled(true);
@@ -2931,7 +2929,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
         int numThreads = 20;
         int numFramesPerThread = (lastFrame/numThreads)+1;
         threadsComplete = 0;
-       /* try
+        try
         {
             FFmpegFrameGrabber g = new FFmpegFrameGrabber(filename);
             g.start();
@@ -2964,7 +2962,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
             Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, ex);
 
         }
-        */
+        
         while (threadsComplete < numThreads)
         {
             try {
@@ -3013,7 +3011,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
             
             System.out.println("Video will start in 10 seconds. Please expand/pull top of output window upward");
             Thread.sleep(10000);
-           /* try
+            try
             {
                 if (fc.getSelectedFile() == null)
                 {
@@ -3071,7 +3069,6 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
                 Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, ex);
                 
             }
-            */
         }
         catch (InterruptedException ex)
         {
@@ -3079,7 +3076,6 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
             Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, ex);
 
         }
-            
     }
     
     private void splitVideoIntoFrames() {
@@ -3087,7 +3083,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
         fc.setCurrentDirectory(new File(System.getProperty("user.home") 
                 + File.separator + "documents"));
         fc.showOpenDialog(ImageFilters.this);
-     /*   try
+        try
         {
             if (fc.getSelectedFile() == null)
             {
@@ -3118,7 +3114,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
             System.out.println("There was an error with the file that was selected");
             Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, ex);
 
-        }*/
+        }
     }
     
     private void addSoundToVideo()
@@ -3289,7 +3285,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
         return toBufferedImage(clone);
     }
     
-    public static BufferedImage toBufferedImage(Image img)
+    public BufferedImage toBufferedImage(Image img)
     {
         if (img instanceof BufferedImage)
         {
@@ -3301,6 +3297,11 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
 
         // Draw the image on to the buffered image
         Graphics2D bGr = bimage.createGraphics();
+        int screenWidth = frame.getBounds().width;
+        int screenHeight = frame.getBounds().height;
+        int imgX = screenWidth/2 - img.getWidth(null)/2;
+        int imgY = screenHeight/2 - img.getHeight(null)/2;
+        //bGr.drawImage(img, imgX, imgY, null);
         bGr.drawImage(img, 0, 0, null);
         bGr.dispose();
 
@@ -3724,8 +3725,8 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
        
     @Override
     public void mouseClicked(MouseEvent e) {
-        int clickedX = (int)(e.getX()/scale);
-        int clickedY = (int)(e.getY()/scale);
+        int clickedX = (int)((e.getX()+leftRight*scrollAmount*scale)/scale);
+        int clickedY = (int)((e.getY()+upDown*scrollAmount*scale)/scale);
         if (toolList.getSelectedItem().equals("Magic Select"))
         {
             magicSelect(clickedX, clickedY);
@@ -3998,12 +3999,43 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
             // zoom out
             System.out.println("Zoom out");
             scale /= 2;
-            if (scale < .5)
+            if (scale < .125)
             {
-                scale = .5;
+                scale = .125;
             }
             repaint();
         }
+        
+        if (e.getKeyCode() == KeyEvent.VK_UP)
+        {
+            //System.out.println("Pressed UP");
+            upDown--;
+            repaint();
+            return;
+        }
+        if (e.getKeyCode() == KeyEvent.VK_DOWN)
+        {
+            //System.out.println("Pressed DOWN");
+            upDown++;
+            repaint();
+            return;
+        }
+        if (e.getKeyCode() == KeyEvent.VK_RIGHT)
+        {
+            //System.out.println("Pressed RIGHT");
+            leftRight++;
+            repaint();
+            return;
+        }
+        if (e.getKeyCode() == KeyEvent.VK_LEFT)
+        {
+            //System.out.println("Pressed LEFT");
+            leftRight--;
+            repaint();
+            return;
+        }
+        
+        
         
         
         if (selectedVertexIndex == -1)
