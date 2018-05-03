@@ -66,9 +66,10 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
     static int WINDOW_WIDTH = 1450;
     static int WINDOW_HEIGHT = 900;
     double scale = 1;
-    int leftRight = 0;
+    int leftRight = 23;
+    int upDown = 19;
     int scrollAmount = 10;
-    int upDown = 0;
+    
     JButton LoadImageButton = new JButton("Load Image");
     JButton LoadTrainingImageButton = new JButton("Load Training Image");
     JButton LoadSetImagesButton = new JButton("Load Training Set");
@@ -188,7 +189,8 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
     JPanel buttons = new JPanel();
     JPanel buttons2 = new JPanel();
     public Image selected_image = null;
-    private File selected_file = new File("/Users/paulsoderquist/Documents/trainingImages/jimmy-stewart-rope.jpg");
+    //private File selected_file = new File("/Users/paulsoderquist/Documents/trainingImages/jimmy-stewart-rope.jpg");
+    private File selected_file = new File("C:\\Users\\psoderquist\\Documents\\NetBeansProjects\\Image-Filters-master\\Image-Filters-master\\faveWife.png");
 
     public ImageFilters() {
         this.colorChooser = new ColorChooserButton(Color.WHITE, this);
@@ -1768,6 +1770,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
     
     @Override
     public void paintComponent(Graphics g) {
+        super.paintComponent(g);
         Graphics2D g2d = (Graphics2D) g;
         AffineTransform saveTransform = g2d.getTransform();
 
@@ -1777,14 +1780,17 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
             
             int screenWidth = frame.getBounds().width;
             int screenHeight = frame.getBounds().height;
+            int imgLeftX = 0;
+            int imgTopY = 0;
             if (selected_image != null)
             {
-                int imgX = screenWidth/2 - selected_image.getWidth(null)/2;
-                int imgY = screenHeight/2 - selected_image.getHeight(null)/2;
+                imgLeftX = screenWidth/2 - selected_image.getWidth(null)/2;
+                imgTopY = screenHeight/2 - selected_image.getHeight(null)/2;
             }
             g2d.setStroke(new BasicStroke((int)(1/scale)));
 
             scaleMatrix.translate(leftRight*-scrollAmount, upDown*-scrollAmount);
+            scaleMatrix.translate((screenWidth/2)/scale, (screenHeight/2)/scale);
 
             g2d.setTransform(scaleMatrix);
         
@@ -1943,7 +1949,8 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
                         continue;
                     }
                 }
-                selected_file = new File("/Users/paulsoderquist/Documents/trainingImages/jimmy-stewart-rope.jpg");
+                //selected_file = new File("/Users/paulsoderquist/Documents/trainingImages/jimmy-stewart-rope.jpg");
+                selected_file = new File("C:\\Users\\psoderquist\\Documents\\NetBeansProjects\\Image-Filters-master\\Image-Filters-master\\faveWife.png");
                 try {
                     selected_image = ImageIO.read(selected_file);
                 } catch (IOException ex) {
@@ -3721,7 +3728,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
         for (int i = 0; i < selectedPolygon.npoints; i++)
         {
             double distance = Math.hypot(selectedPolygon.xpoints[i]-x, selectedPolygon.ypoints[i]-y);
-            if (distance < 5)
+            if (distance <= 10.0/scale )
             {
                 return i;
             }
@@ -3732,8 +3739,26 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
        
     @Override
     public void mouseClicked(MouseEvent e) {
-        int clickedX = (int)((e.getX()+leftRight*scrollAmount*scale)/scale);
-        int clickedY = (int)((e.getY()+upDown*scrollAmount*scale)/scale);
+        
+        int screenWidth = frame.getBounds().width;
+        int screenHeight = frame.getBounds().height;
+        int imgLeftX = 0;
+        int imgTopY = 0;
+        if (selected_image != null)
+        {
+            imgLeftX = screenWidth/2 - selected_image.getWidth(null)/2;
+            imgTopY = screenHeight/2 - selected_image.getHeight(null)/2;
+        }
+        
+        int clickedX = 0;
+        int clickedY = 0;
+        
+        clickedX += (int)((e.getX()+leftRight*scrollAmount*scale)/scale);
+        clickedY += (int)((e.getY()+upDown*scrollAmount*scale)/scale);
+        
+        clickedX -= (screenWidth/2)/scale;
+        clickedY -= (screenHeight/2)/scale;
+        
         if (toolList.getSelectedItem().equals("Magic Select"))
         {
             magicSelect(clickedX, clickedY);
