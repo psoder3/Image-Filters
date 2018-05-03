@@ -397,7 +397,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
         }
     }
     
-    public void colorizePolygon(Color color)
+    public void colorizePolygon(Color color_picked)
     {
         int counterOff = 0;
         for (int row = 0; row < image_pixels.getHeight(); row++)
@@ -408,29 +408,29 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
                 {
                     continue;
                 }
-                float[] hsvInput = new float[3];
-                Color.RGBtoHSB(color.getRed(),color.getGreen(), color.getBlue(), hsvInput);
-                float inputHue = hsvInput[0];
-                float inputSaturation = hsvInput[1];
+                float[] hsbInput = new float[3];
+                Color.RGBtoHSB(color_picked.getRed(),color_picked.getGreen(), color_picked.getBlue(), hsbInput);
+                float inputHue = hsbInput[0];
+                float inputSaturation = hsbInput[1];
                 Pixel pixel = getPixel(column,row,image_pixels);
-                int r = pixel.getRedValue();
-                int g = pixel.getGreenValue();
-                int b = pixel.getBlueValue();
-                int average = (int)((r+g+b)/3.0);
-                r = average;
-                g = average;
-                b = average;
-                float[] hsv = new float[3];
-                Color.RGBtoHSB(r,g,b,hsv);
-                float h = hsv[0];
-                float s = hsv[1];
-                float v = hsv[2];
+                int pixelR = pixel.getRedValue();
+                int pixelG = pixel.getGreenValue();
+                int pixelB = pixel.getBlueValue();
+                int average = (int)((pixelR+pixelG+pixelB)/3.0);
+                pixelR = average;
+                pixelG = average;
+                pixelB = average;
+                float[] hsb = new float[3];
+                Color.RGBtoHSB(pixelR,pixelG,pixelB,hsb);
+                float h = hsb[0];
+                float s = hsb[1];
+                float b = hsb[2];
                 //System.out.print(hsv[0] + " ");
-                v *= 1.245;
-                if (v > 1) v = 1;
-                if (v < 0) v = 0;
-                int rgb = Color.HSBtoRGB(inputHue,inputSaturation,v);
-                Color newColor = new Color(rgb);
+                b *= 1.245;
+                if (b > 1) b = 1;
+                if (b < 0) b = 0;
+                Color newColor = Color.getHSBColor(inputHue,inputSaturation,b);
+                //Color newColor = new Color(rgb);
                 double newAverage = (newColor.getRed() + newColor.getGreen() + newColor.getBlue()) / 3.0;
                 //System.out.println("old average: " + average);
                 //System.out.println("new average: " + newAverage);
@@ -442,21 +442,111 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
                 int newBlue = newColor.getBlue()+difference;
                 if ((int)newAverage != average)
                 {
-                    
-                    if (newRed > 255) newRed = 255; if (newRed < 0) newRed = 0;
-                    if (newGreen > 255) newGreen = 255; if (newGreen < 0) newGreen = 0;
-                    if (newBlue > 255) newBlue = 255; if (newBlue < 0) newBlue = 0;
+                    if (row > 200)
+                    {
+                        //System.out.println("Row big");
+                    }
+                    if (newRed > 255)
+                    {
+                        int surplus = newRed - 255;
+                        newRed = 255;
+                        if (difference > 0)
+                        {
+                            newGreen += surplus/2;
+                            newBlue += surplus/2;
+                        }
+                        else
+                        {
+                            newGreen -= surplus/2;
+                            newBlue -= surplus/2;
+                        }
+                    } 
+                    else if (newRed < 0)
+                    {
+                        int surplus = 0-newRed;
+                        newRed = 0;
+                        if (difference > 0)
+                        {
+                            newGreen -= surplus/2;
+                            newBlue -= surplus/2;
+                        }
+                        else
+                        {
+                            newGreen += surplus/2;
+                            newBlue += surplus/2;
+                        }
+                    }
+                    if (newGreen > 255) 
+                    {
+                        int surplus = newGreen - 255;
+                        newGreen = 255;
+                        if (difference > 0)
+                        {
+                            newRed += surplus/2;
+                            newBlue += surplus/2;
+                        }
+                        else
+                        {
+                            newRed -= surplus/2;
+                            newBlue -= surplus/2;
+                        }
+                    } 
+                    else if (newGreen < 0) 
+                    {
+                        int surplus = 0 - newGreen;
+                        newGreen = 0;
+                        if (difference > 0)
+                        {
+                            newRed -= surplus/2;
+                            newBlue -= surplus/2;
+                        }
+                        else
+                        {
+                            newRed += surplus/2;
+                            newBlue += surplus/2;
+                        }
+                    }
+                    if (newBlue > 255) 
+                    {
+                        int surplus = newBlue - 255;
+                        newBlue = 255;
+                        if (difference > 0)
+                        {
+                            newRed += surplus/2;
+                            newGreen += surplus/2;
+                        }
+                        else
+                        {
+                            newRed -= surplus/2;
+                            newGreen -= surplus/2;
+                        }
+                    } 
+                    else if (newBlue < 0)
+                    {
+                        int surplus = 0 - newBlue;
+                        newBlue = 0;
+                        if (difference > 0)
+                        {
+                            newRed -= surplus/2;
+                            newGreen -= surplus/2;
+                        }
+                        else
+                        {
+                            newRed += surplus/2;
+                            newGreen += surplus/2;
+                        }
+                    }
                     
                     pixel.setRGB(newRed, newGreen, newBlue);
 
                 }
                 newAverage = (newRed + newGreen + newBlue)/3;
-                if ((int)newAverage > average)
+                if ((int)newAverage > average+1)
                 {
                     //System.out.println("new greater than old");
                     counterOff++;
                 }
-                else if ((int)newAverage < average)
+                else if ((int)newAverage < average-1)
                 {
                     //System.out.println("new less than old" + (newAverage - average));
                     counterOff++;                    
