@@ -53,7 +53,7 @@ import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTextField;
 import javax.swing.Timer;
-import org.bytedeco.javacv.FFmpegFrameGrabber;
+//import org.bytedeco.javacv.FFmpegFrameGrabber;
 
 
 /*
@@ -1777,9 +1777,11 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
             
             int screenWidth = frame.getBounds().width;
             int screenHeight = frame.getBounds().height;
-            int imgX = screenWidth/2 - selected_image.getWidth(null)/2;
-            int imgY = screenHeight/2 - selected_image.getHeight(null)/2;
-
+            if (selected_image != null)
+            {
+                int imgX = screenWidth/2 - selected_image.getWidth(null)/2;
+                int imgY = screenHeight/2 - selected_image.getHeight(null)/2;
+            }
             g2d.setStroke(new BasicStroke((int)(1/scale)));
 
             scaleMatrix.translate(leftRight*-scrollAmount, upDown*-scrollAmount);
@@ -2929,6 +2931,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
         int numThreads = 20;
         int numFramesPerThread = (lastFrame/numThreads)+1;
         threadsComplete = 0;
+        /*
         try
         {
             FFmpegFrameGrabber g = new FFmpegFrameGrabber(filename);
@@ -2962,7 +2965,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
             Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, ex);
 
         }
-        
+        */
         while (threadsComplete < numThreads)
         {
             try {
@@ -3011,6 +3014,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
             
             System.out.println("Video will start in 10 seconds. Please expand/pull top of output window upward");
             Thread.sleep(10000);
+            /*
             try
             {
                 if (fc.getSelectedFile() == null)
@@ -3069,6 +3073,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
                 Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, ex);
                 
             }
+            */
         }
         catch (InterruptedException ex)
         {
@@ -3083,6 +3088,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
         fc.setCurrentDirectory(new File(System.getProperty("user.home") 
                 + File.separator + "documents"));
         fc.showOpenDialog(ImageFilters.this);
+        /*
         try
         {
             if (fc.getSelectedFile() == null)
@@ -3115,6 +3121,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
             Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, ex);
 
         }
+        */
     }
     
     private void addSoundToVideo()
