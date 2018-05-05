@@ -2546,6 +2546,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
                 fw.append(graphic.polygons.size()+"\n");
                 for (MaskedObject p : graphic.polygons)
                 {
+                    fw.append("rgb " + p.color.getRed() + " " + p.color.getGreen() + " " + p.color.getBlue() + "\n");
                     fw.append(p.polygon.npoints+"\n");
                     for (int i = 0; i < p.polygon.npoints; i++)
                     {
@@ -2587,8 +2588,21 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
                 
                 for (int i = 0; i < numPolygons; i++)
                 {
-                    int numVertices = reader.nextInt();
                     MaskedObject poly = new MaskedObject();
+                    String next = reader.next();
+                    int numVertices;
+                    if (next.equals("rgb"))
+                    {
+                        int r = reader.nextInt();
+                        int g = reader.nextInt();
+                        int b = reader.nextInt();
+                        poly.color = new Color(r,g,b);
+                        numVertices = reader.nextInt();
+                    }
+                    else
+                    {
+                        numVertices = Integer.parseInt(next);
+                    }
                     for (int j = 0; j < numVertices; j++)
                     {
                         int xcoord = reader.nextInt();
