@@ -1996,16 +1996,40 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
             }
             if (selectedVertexIndex != -1)
             {
+                int dotWidth = (int)(9/(scale/2));
+                if (dotWidth < 1)
+                {
+                    dotWidth = 2;
+                }
+                int dotOffset = (int)(4/(scale/2));
+                if (dotOffset < 1)
+                {
+                    dotOffset = 1;
+                }
                 g.setColor(Color.RED);
-                g.fillOval(selectedPolygon.polygon.xpoints[selectedVertexIndex] - (int)(4/scale), selectedPolygon.polygon.ypoints[selectedVertexIndex] - (int)(4/scale), (int)(9/scale), (int)(9/scale));
+                g.fillOval(selectedPolygon.polygon.xpoints[selectedVertexIndex] - dotOffset, selectedPolygon.polygon.ypoints[selectedVertexIndex] - dotOffset, dotWidth, dotWidth);
             }
 
             if (selectedPolygon != null)
             {
                 g.setColor(Color.RED);
+                int dotWidth = (int)(5/(scale/2));
+                if (dotWidth < 1)
+                {
+                    dotWidth = 1;
+                }
+                int dotOffset = (int)(2/(scale/2));
+                if (dotOffset < 1)
+                {
+                    dotOffset = 1;
+                }
                 for (int i = 0; i < selectedPolygon.polygon.npoints; i++)
                 {
-                    g.fillOval(selectedPolygon.polygon.xpoints[i] - (int)(2/scale), selectedPolygon.polygon.ypoints[i] - (int)(2/scale), (int)(5/scale), (int)(5/scale));
+                    if (i == selectedVertexIndex)
+                    {
+                        continue;
+                    }
+                    g.fillOval(selectedPolygon.polygon.xpoints[i] - dotOffset, selectedPolygon.polygon.ypoints[i] - dotOffset, dotWidth, dotWidth);
                 }
             }
 
@@ -3919,7 +3943,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
         for (int i = 0; i < selectedPolygon.polygon.npoints; i++)
         {
             double distance = Math.hypot(selectedPolygon.polygon.xpoints[i]-x, selectedPolygon.polygon.ypoints[i]-y);
-            if (distance <= 10.0/scale )
+            if (distance <= 20.0/scale )
             {
                 return i;
             }
