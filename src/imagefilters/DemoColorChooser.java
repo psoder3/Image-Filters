@@ -1,7 +1,8 @@
 package imagefilters;
 
-import static imagefilters.ImageFilters.toBufferedImage;
 import java.awt.Color;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import javax.swing.JColorChooser;
 import javax.swing.JDialog;
 import javax.swing.event.ChangeEvent;
@@ -14,18 +15,45 @@ public class DemoColorChooser {
     {
         this.imageFilters = imageFilters;
         chooser = new JColorChooser();
+        chooser.setColor(imageFilters.selectedPolygon.color);
         chooser.getSelectionModel().addChangeListener(new ChangeListener() {
             @Override
             public void stateChanged(ChangeEvent arg0) {
-                //Color color = chooser.getColor();
+                if (imageFilters.selectedPolygon == null)
+                {
+                    return;
+                }
+                Color color = chooser.getColor();
                 //System.out.println(color);
-                //imageFilters.image_pixels = toBufferedImage(imageFilters.selected_image);
-                //imageFilters.colorizePolygon(color);
-                //imageFilters.repaint();
+                imageFilters.image_pixels = imageFilters.toBufferedImage(imageFilters.selected_image);
+                imageFilters.colorizePolygon(color);
+                imageFilters.repaint();
             }
         });
+        
+        ActionListener okListener = new ActionListener() {
+            public void actionPerformed(ActionEvent evt) {
+                
+                System.out.println("Clicked OK");
+                imageFilters.selectedPolygon.color = chooser.getColor();
+            }
+        };
+
+        ActionListener cancelListener = new ActionListener() {
+            public void actionPerformed(ActionEvent evt) {
+                System.out.println("Canceled");
+                Color c = null;
+                if (imageFilters.selectedPolygon != null)
+                {
+                    c = imageFilters.selectedPolygon.color;
+                }
+                
+                imageFilters.colorChooser.setSelectedColor(c);
+            }
+        };
+        
         JDialog dialog = JColorChooser.createDialog(null, "Color Chooser",
-                true, chooser, null, null);
+                true, chooser, okListener, cancelListener);
         dialog.setVisible(true);
     }
     
