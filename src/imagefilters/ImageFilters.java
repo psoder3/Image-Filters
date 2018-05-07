@@ -112,7 +112,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
     JLabel extensionLbl = new JLabel(".pmoc");
     JButton saveButton = new JButton("Save");
     JButton openButton = new JButton("Open");
-    JButton recolorAllPolygonsButton = new JButton("Recolor All Polygons");
+    JButton recolorAllPolygonsButton = new JButton("Recolor Selected Polygon");
     
     Set<Point> ObjectSelection = new HashSet();
     
@@ -132,6 +132,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
     //Point selectedVertex;
     int selectedVertexIndex = -1;
     int hoverVertexIndex = -1;
+    boolean currentlyDragging = false;
     
     
     Rectangle rectangle;
@@ -145,7 +146,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
 
     String[] keyStrings = { "0 Neighbors", "1 Neighbor", "2 Neighbors", "3 Neighbors",
         "4 Neighbors", "Optimized Interpolate"};
-    String[] toolStrings = { "Select Polygon Mode", "Insert Point Mode", "Magic Select"};
+    String[] toolStrings = { "Select Polygon Mode", "Vertex Mode", "Magic Select"};
     ArrayList<Pixel>[][][][][] optInterpolationDictionary = new ArrayList[256][][][][];
     ArrayList<Pair>[] neighborMeanMap = new ArrayList[256];
 
@@ -2659,7 +2660,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         
         graphic.recolorAllPolygonsButton.addActionListener(new ActionListener () {
             public void actionPerformed(ActionEvent e) {
-                graphic.recolorAllPolygons();
+                graphic.recolorSelectedPolygon();
                 graphic.requestFocus();
             }
         });
@@ -4040,7 +4041,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
             }
             repaint();
         }
-        else if (toolList.getSelectedItem().equals("Insert Point Mode"))
+        else if (toolList.getSelectedItem().equals("Vertex Mode"))
         {
             int index = clickNearVertex(clickedX, clickedY);
             if (index != -1)
@@ -4084,10 +4085,20 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
 
     @Override
     public void mousePressed(MouseEvent e) {
+        if (!toolList.getSelectedItem().equals("Vertex Mode"))
+        {
+            return;
+        }
+        if (hoverVertexIndex != -1)
+        {
+            selectedVertexIndex = hoverVertexIndex;
+            currentlyDragging = true;
+        }
     }
 
     @Override
     public void mouseReleased(MouseEvent e) {
+        currentlyDragging = false;
     }
 
     @Override
@@ -4101,6 +4112,10 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
     @Override
     public void mouseMoved(MouseEvent e) {
        //System.out.println("Mouse moved");
+       if (!toolList.getSelectedItem().equals("Vertex Mode"))
+        {
+            return;
+        }
        int screenWidth = frame.getBounds().width;
         int screenHeight = frame.getBounds().height;
         int imgLeftX = 0;
@@ -4131,8 +4146,31 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
 
     @Override
     public void mouseDragged(MouseEvent e) {
+        int screenWidth = frame.getBounds().width;
+        int screenHeight = frame.getBounds().height;
+        int imgLeftX = 0;
+        int imgTopY = 0;
+        if (selected_image != null)
+        {
+            imgLeftX = screenWidth/2 - selected_image.getWidth(null)/2;
+            imgTopY = screenHeight/2 - selected_image.getHeight(null)/2;
+        }
+
+        int clickedX = 0;
+        int clickedY = 0;
+
+        clickedX += (int)((e.getX()+leftRight*scrollAmount*scale)/scale);
+        clickedY += (int)((e.getY()+upDown*scrollAmount*scale)/scale);
+
+        clickedX -= (screenWidth/2)/scale;
+        clickedY -= (screenHeight/2)/scale;
         
-       System.out.println("Mouse dragged");
+        selectedPolygon.polygon.xpoints[selectedVertexIndex] = clickedX;
+        selectedPolygon.polygon.ypoints[selectedVertexIndex] = clickedY;
+        
+        
+        repaint();
+        
     }
     
 
@@ -4437,13 +4475,9 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
     public void keyReleased(KeyEvent e) {
     }
 
-    private void recolorAllPolygons() {
+    private void recolorSelectedPolygon() {
 
-        for (MaskedObject mo : polygons)
-        {
-            selectedPolygon = mo;
-            colorizePolygon(selectedPolygon.color);
-        }
+        colorizePolygon(selectedPolygon.color);
         repaint();
     }
 
