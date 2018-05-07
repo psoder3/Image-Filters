@@ -43,6 +43,7 @@ import java.awt.BasicStroke;
 import java.awt.Polygon;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
+import java.awt.event.MouseMotionListener;
 import java.awt.geom.AffineTransform;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -61,7 +62,7 @@ import javax.swing.Timer;
 */
 
 
-public class ImageFilters extends JPanel implements MouseListener, KeyListener {
+public class ImageFilters extends JPanel implements MouseListener, KeyListener, MouseMotionListener {
 
     static int WINDOW_WIDTH = 1450;
     static int WINDOW_HEIGHT = 900;
@@ -111,6 +112,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
     JLabel extensionLbl = new JLabel(".pmoc");
     JButton saveButton = new JButton("Save");
     JButton openButton = new JButton("Open");
+    JButton recolorAllPolygonsButton = new JButton("Recolor All Polygons");
     
     Set<Point> ObjectSelection = new HashSet();
     
@@ -129,6 +131,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
     MaskedObject selectedPolygon;
     //Point selectedVertex;
     int selectedVertexIndex = -1;
+    int hoverVertexIndex = -1;
     
     
     Rectangle rectangle;
@@ -399,6 +402,10 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
     
     public void colorizePolygon(Color color_picked)
     {
+        if (color_picked == null)
+        {
+            return;
+        }
         int counterOff = 0;
         for (int row = 0; row < image_pixels.getHeight(); row++)
         {
@@ -2029,7 +2036,14 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
                     {
                         continue;
                     }
-                    g.fillOval(selectedPolygon.polygon.xpoints[i] - dotOffset, selectedPolygon.polygon.ypoints[i] - dotOffset, dotWidth, dotWidth);
+                    if (i == hoverVertexIndex)
+                    {
+                        g.fillOval(selectedPolygon.polygon.xpoints[i] - dotOffset*2, selectedPolygon.polygon.ypoints[i] - dotOffset*2, dotWidth*2, dotWidth*2);
+                    }
+                    else
+                    {
+                        g.fillOval(selectedPolygon.polygon.xpoints[i] - dotOffset, selectedPolygon.polygon.ypoints[i] - dotOffset, dotWidth, dotWidth);
+                    }
                 }
             }
 
@@ -2243,6 +2257,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
         //graphic.assembleVideoFromFrames();
         graphic.numberMosaicColumnsBox.setText("30");
         graphic.addMouseListener(graphic);
+        graphic.addMouseMotionListener(graphic);
         graphic.frame = new JFrame();
         graphic.filterList.setSelectedIndex(5);
         graphic.keyList.setSelectedIndex(0);
@@ -2642,6 +2657,12 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
             }
         });
         
+        graphic.recolorAllPolygonsButton.addActionListener(new ActionListener () {
+            public void actionPerformed(ActionEvent e) {
+                graphic.recolorAllPolygons();
+                graphic.requestFocus();
+            }
+        });
         
         graphic.buttons2.add(graphic.toolList);
         //graphic.buttons.add(graphic.SplitVideoFramesButton);
@@ -2677,8 +2698,8 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
             }
         });
         */
-        
         graphic.buttons2.add(graphic.colorChooser);
+        graphic.buttons2.add(graphic.recolorAllPolygonsButton);
         //graphic.buttons2.add(graphic.PixelateButton);
         //graphic.buttons2.add(graphic.Mosaic1Button);
         //graphic.buttons2.add(graphic.Mosaic2Button);
@@ -2686,7 +2707,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
         
         //graphic.buttons2.add(graphic.numberMosaicColumnsBox);
 
-        graphic.buttons2.add(graphic.GenerateTrainingArrangements);
+        //graphic.buttons2.add(graphic.GenerateTrainingArrangements);
         graphic.buttons.add(graphic.CreateFilteredVideoButton);
         graphic.ResetButton.setEnabled(false);
         
@@ -4076,6 +4097,44 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
     @Override
     public void mouseExited(MouseEvent e) {
     }
+    
+    @Override
+    public void mouseMoved(MouseEvent e) {
+       //System.out.println("Mouse moved");
+       int screenWidth = frame.getBounds().width;
+        int screenHeight = frame.getBounds().height;
+        int imgLeftX = 0;
+        int imgTopY = 0;
+        if (selected_image != null)
+        {
+            imgLeftX = screenWidth/2 - selected_image.getWidth(null)/2;
+            imgTopY = screenHeight/2 - selected_image.getHeight(null)/2;
+        }
+        
+        int clickedX = 0;
+        int clickedY = 0;
+        
+        clickedX += (int)((e.getX()+leftRight*scrollAmount*scale)/scale);
+        clickedY += (int)((e.getY()+upDown*scrollAmount*scale)/scale);
+        
+        clickedX -= (screenWidth/2)/scale;
+        clickedY -= (screenHeight/2)/scale;
+        int oldHover = hoverVertexIndex;
+        hoverVertexIndex = clickNearVertex(clickedX,clickedY);
+        if (oldHover != hoverVertexIndex)
+        {
+            repaint();
+        }
+        
+       
+    }
+
+    @Override
+    public void mouseDragged(MouseEvent e) {
+        
+       System.out.println("Mouse dragged");
+    }
+    
 
     private void magicSelect(int x, int y) {
         ObjectSelection = new HashSet();
@@ -4378,6 +4437,16 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
     public void keyReleased(KeyEvent e) {
     }
 
+    private void recolorAllPolygons() {
+
+        for (MaskedObject mo : polygons)
+        {
+            selectedPolygon = mo;
+            colorizePolygon(selectedPolygon.color);
+        }
+        repaint();
+    }
+
     
     
     
@@ -4595,10 +4664,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener {
             return number + " " + value + " " + pixels;
         }
     }
-    
-    
-    
-    
+
 }
 
 
