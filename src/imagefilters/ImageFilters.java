@@ -67,7 +67,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
     static int WINDOW_WIDTH = 1450;
     static int WINDOW_HEIGHT = 900;
     double scale = 1;
-    int leftRight = 23;
+    int leftRight = 33;
     int upDown = 19;
     int scrollAmount = 10;
     
@@ -157,7 +157,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
     JComboBox keyList = new JComboBox(keyStrings);
     JComboBox toolList = new JComboBox(toolStrings);
 
-    
+    HSVColorChooser hsvColorChooser;
     
     
     String mosaicType = "Mosaic1";
@@ -432,10 +432,6 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         {
             for (int column = 0; column < image_pixels.getWidth(); column++)
             {
-                if (row == 305 && column == 393)
-                {
-                    System.out.println("This one should be colored. Let's see why it isn't");
-                }
                 if (selectedPolygon == null)
                 {
                     continue;
@@ -2757,15 +2753,19 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         
         try {
             graphic.selected_image = ImageIO.read(graphic.selected_file);
+            graphic.image_pixels = graphic.toBufferedImage(graphic.selected_image);
+
         } catch (IOException ex) {
             Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, ex);
         }
+        graphic.hsvColorChooser = new HSVColorChooser(graphic);
         JPanel buttonPanel = new JPanel();
         GridLayout grid = new GridLayout(2,1);
         buttonPanel.setLayout(grid);
         buttonPanel.add(graphic.buttons);
         buttonPanel.add(graphic.buttons2);
         graphic.frame.add(buttonPanel, BorderLayout.SOUTH);
+        graphic.frame.add(graphic.hsvColorChooser, BorderLayout.EAST);
         graphic.revalidate();
         graphic.repaint();
         graphic.frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -4046,7 +4046,6 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         
         clickedX -= (screenWidth/2)/scale;
         clickedY -= (screenHeight/2)/scale;
-        System.out.println(clickedX + " " + clickedY);
 
         if (toolList.getSelectedItem().equals("Magic Select"))
         {
@@ -4066,6 +4065,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                 //selectedVertex = new Point(x,y);
                 selectedVertexIndex = clickedObject.polygon.npoints-1;
                 colorChooser.setSelectedColor(selectedPolygon.color);
+                hsvColorChooser.setSelectedColor(selectedPolygon.color);
             }
             else
             {
