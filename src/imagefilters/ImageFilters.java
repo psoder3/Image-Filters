@@ -193,8 +193,8 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
     JPanel buttons = new JPanel();
     JPanel buttons2 = new JPanel();
     public Image selected_image = null;
-    private File selected_file = new File("/Users/paulsoderquist/Documents/trainingImages/jimmy-stewart-rope.jpg");
-    //private File selected_file = new File("C:\\Users\\psoderquist\\Documents\\NetBeansProjects\\Image-Filters-master\\Image-Filters-master\\faveWife.png");
+    //private File selected_file = new File("/Users/paulsoderquist/Documents/trainingImages/jimmy-stewart-rope.jpg");
+    private File selected_file = new File("C:\\Users\\psoderquist\\Documents\\NetBeansProjects\\Image-Filters-master\\Image-Filters-master\\faveWife.png");
 
     public ImageFilters() {
         this.colorChooser = new ColorChooserButton(Color.WHITE, this);
@@ -1992,7 +1992,8 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         super.paintComponent(g);
         Graphics2D g2d = (Graphics2D) g;
         AffineTransform saveTransform = g2d.getTransform();
-
+        g.setColor(Color.gray);
+        g.fillRect(0, 0, 500, 300);
         try {
             AffineTransform scaleMatrix = new AffineTransform();
             scaleMatrix.scale(scale, scale);
@@ -2001,6 +2002,8 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
             int screenHeight = frame.getBounds().height;
             int imgLeftX = 0;
             int imgTopY = 0;
+            g.setColor(Color.gray);
+            g.fillRect(0, 0, screenWidth, screenHeight);
             if (selected_image != null)
             {
                 imgLeftX = screenWidth/2 - selected_image.getWidth(null)/2;
@@ -2199,8 +2202,8 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                         continue;
                     }
                 }
-                selected_file = new File("/Users/paulsoderquist/Documents/trainingImages/jimmy-stewart-rope.jpg");
-                //selected_file = new File("C:\\Users\\psoderquist\\Documents\\NetBeansProjects\\Image-Filters-master\\Image-Filters-master\\faveWife.png");
+                //selected_file = new File("/Users/paulsoderquist/Documents/trainingImages/jimmy-stewart-rope.jpg");
+                selected_file = new File("C:\\Users\\psoderquist\\Documents\\NetBeansProjects\\Image-Filters-master\\Image-Filters-master\\faveWife.png");
                 try {
                     selected_image = ImageIO.read(selected_file);
                 } catch (IOException ex) {
@@ -2769,6 +2772,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         graphic.revalidate();
         graphic.repaint();
         graphic.frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        graphic.frame.setExtendedState(graphic.frame.getExtendedState() | JFrame.MAXIMIZED_BOTH);
         graphic.frame.setVisible(true);
         
         //graphic.getScreenCapture();
@@ -4147,6 +4151,11 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
     @Override
     public void mouseMoved(MouseEvent e) {
        //System.out.println("Mouse moved");
+       System.out.println("Mouse moved");
+       if (!hasFocus())
+       {
+           requestFocus();
+       }
        if (!toolList.getSelectedItem().equals("Vertex Mode"))
         {
             return;
@@ -4200,12 +4209,15 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         clickedX -= (screenWidth/2)/scale;
         clickedY -= (screenHeight/2)/scale;
         
-        selectedPolygon.polygon.xpoints[selectedVertexIndex] = clickedX;
-        selectedPolygon.polygon.ypoints[selectedVertexIndex] = clickedY;
+        if (currentlyDragging)
+        {        
+            selectedPolygon.polygon.xpoints[selectedVertexIndex] = clickedX;
+            selectedPolygon.polygon.ypoints[selectedVertexIndex] = clickedY;
         
-        // This code below fixes the problem of the points being directly 
-        // manipulated and the bounding box not updated
-        selectedPolygon.polygon.invalidate();
+            // This code below fixes the problem of the points being directly 
+            // manipulated and the bounding box not updated
+            selectedPolygon.polygon.invalidate();
+        }
         repaint();
         
     }
