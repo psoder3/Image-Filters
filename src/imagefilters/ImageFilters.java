@@ -133,7 +133,8 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
     int selectedVertexIndex = -1;
     int hoverVertexIndex = -1;
     boolean currentlyDragging = false;
-    
+    MaskedObject adjacentPolygon;
+    int adjacentPolygonVertex = -1;
     
     Rectangle rectangle;
 
@@ -2030,6 +2031,10 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                     {
                         g.setColor(Color.RED);
                     }
+                    if (p.equals(adjacentPolygon))
+                    {
+                        g.setColor(Color.GREEN);
+                    }
                     g.drawPolygon(p.polygon);
                 }
             }
@@ -2078,7 +2083,31 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                     }
                 }
             }
-
+            if (adjacentPolygon != null)
+            {
+                g.setColor(Color.GREEN);
+                int dotWidth = (int)(5/(scale/2));
+                if (dotWidth < 1)
+                {
+                    dotWidth = 1;
+                }
+                int dotOffset = (int)(2/(scale/2));
+                if (dotOffset < 1)
+                {
+                    dotOffset = 1;
+                }
+                for (int i = 0; i < adjacentPolygon.polygon.npoints; i++)
+                {
+                    if (i == adjacentPolygonVertex)
+                    {
+                        g.fillOval(adjacentPolygon.polygon.xpoints[i] - dotOffset*2, adjacentPolygon.polygon.ypoints[i] - dotOffset*2, dotWidth*2, dotWidth*2);
+                    }
+                    else
+                    {
+                        g.fillOval(adjacentPolygon.polygon.xpoints[i] - dotOffset, adjacentPolygon.polygon.ypoints[i] - dotOffset, dotWidth, dotWidth);
+                    }
+                }
+            }
             if (rectangle != null)
             {
                 g.drawRect(rectangle.x, rectangle.y, rectangle.width, rectangle.height);
@@ -2934,6 +2963,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
             }
             selected_file = fc.getSelectedFile();
             selected_image = ImageIO.read(selected_file);
+            image_pixels = toBufferedImage(selected_image);
             this.setPreferredSize(new Dimension(selected_image.getWidth(null),selected_image.getHeight(null)));
             InvertButton.setEnabled(true);
             GrayScaleButton.setEnabled(true);
@@ -3961,6 +3991,55 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         System.out.println(filledCounter + "/256 containers filled");
     }
 
+    private void validateDraggingAdjacentObject(int x, int y)
+    {
+        // Check if they're trying to click along a border of another polygon
+        if (selectedPolygon != null)
+        {
+            adjacentPolygonVertex = -1;
+            adjacentPolygon = null;
+            for (MaskedObject p : polygons)
+            {
+                if (p == selectedPolygon)
+                {
+                    continue;
+                }
+                int possible_index = clickNearVertexOfPolygon(p.polygon,x,y);
+                if (possible_index != -1)
+                {
+                    adjacentPolygon = p;
+                    adjacentPolygonVertex = possible_index;
+                    break;
+                }
+            }
+            
+        }
+    }
+    
+    private void validateHoveringAdjacentObject(int x, int y)
+    {
+        // Check if they're trying to click along a border of another polygon
+        if (selectedPolygon != null && hoverVertexIndex == -1)
+        {
+            adjacentPolygonVertex = -1;
+            adjacentPolygon = null;
+            for (MaskedObject p : polygons)
+            {
+                if (p == selectedPolygon)
+                {
+                    continue;
+                }
+                int possible_index = clickNearVertexOfPolygon(p.polygon,x,y);
+                if (possible_index != -1)
+                {
+                    adjacentPolygon = p;
+                    adjacentPolygonVertex = possible_index;
+                    break;
+                }
+            }
+            
+        }
+    }
     
     private MaskedObject pointIsContainedByObject(int x, int y) {
         ArrayList<MaskedObject> PolygonsThatContainPoint = new ArrayList();
@@ -4020,6 +4099,22 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         for (int i = 0; i < selectedPolygon.polygon.npoints; i++)
         {
             double distance = Math.hypot(selectedPolygon.polygon.xpoints[i]-x, selectedPolygon.polygon.ypoints[i]-y);
+            if (distance <= 20.0/scale )
+            {
+                return i;
+            }
+        }
+        return -1;
+    }
+    
+    private int clickNearVertexOfPolygon(Polygon p, int x, int y) {
+        if (p == null)
+        {
+            return -1;
+        }
+        for (int i = 0; i < p.npoints; i++)
+        {
+            double distance = Math.hypot(p.xpoints[i]-x, p.ypoints[i]-y);
             if (distance <= 20.0/scale )
             {
                 return i;
@@ -4097,10 +4192,24 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                     selectedPolygon = new MaskedObject();
                     polygons.add(selectedPolygon);
                 }
-                selectedPolygon.polygon.addPoint(clickedX, clickedY);
-                //selectedVertex = new Point(e.getX(), e.getY());
+                if (adjacentPolygon != null && adjacentPolygonVertex != -1)
+                {
+                    selectedPolygon.polygon.addPoint(adjacentPolygon.polygon.xpoints[adjacentPolygonVertex],
+                            adjacentPolygon.polygon.ypoints[adjacentPolygonVertex]);
+                }
+                else
+                {
+                    selectedPolygon.polygon.addPoint(clickedX, clickedY);
+                    //selectedVertex = new Point(e.getX(), e.getY());
+                }
                 selectedVertexIndex = selectedPolygon.polygon.npoints-1;
+                
+                
+                
             }
+            
+            
+            
             repaint();
         }
         /*
@@ -4151,7 +4260,6 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
     @Override
     public void mouseMoved(MouseEvent e) {
        //System.out.println("Mouse moved");
-       System.out.println("Mouse moved");
        if (!hasFocus())
        {
            requestFocus();
@@ -4180,11 +4288,18 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         clickedY -= (screenHeight/2)/scale;
         int oldHover = hoverVertexIndex;
         hoverVertexIndex = clickNearVertex(clickedX,clickedY);
+        
         if (oldHover != hoverVertexIndex)
         {
             repaint();
         }
         
+        int oldHoverAdjacent = adjacentPolygonVertex;
+        validateHoveringAdjacentObject(clickedX,clickedY);
+        if (oldHoverAdjacent != adjacentPolygonVertex)
+        {
+            repaint();
+        }
        
     }
 
@@ -4210,14 +4325,27 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         clickedY -= (screenHeight/2)/scale;
         
         if (currentlyDragging)
-        {        
-            selectedPolygon.polygon.xpoints[selectedVertexIndex] = clickedX;
-            selectedPolygon.polygon.ypoints[selectedVertexIndex] = clickedY;
-        
+        {     
+            validateDraggingAdjacentObject(clickedX,clickedY);
+            if (adjacentPolygonVertex != -1)
+            {               
+                selectedPolygon.polygon.xpoints[selectedVertexIndex] = adjacentPolygon.polygon.xpoints[adjacentPolygonVertex];
+                selectedPolygon.polygon.ypoints[selectedVertexIndex] = adjacentPolygon.polygon.ypoints[adjacentPolygonVertex];
+            }
+            else
+            {
+                selectedPolygon.polygon.xpoints[selectedVertexIndex] = clickedX;
+                selectedPolygon.polygon.ypoints[selectedVertexIndex] = clickedY;
+            }
             // This code below fixes the problem of the points being directly 
             // manipulated and the bounding box not updated
             selectedPolygon.polygon.invalidate();
         }
+        // int oldHoverAdjacent = adjacentPolygonVertex;
+        //if (oldHoverAdjacent != adjacentPolygonVertex)
+        //{
+        //    repaint();
+        //}
         repaint();
         
     }
@@ -4499,7 +4627,6 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                 polygons.remove(selectedPolygon);
                 selectedPolygon = null;
                 selectedVertexIndex = -1;
-                selectedPolygon.polygon.invalidate();
                 repaint();
                 return;
             }
