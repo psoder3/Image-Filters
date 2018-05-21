@@ -41,10 +41,14 @@ import javax.swing.JComboBox;
 import imagefilters.ColorChooserButton.ColorChangedListener;
 import java.awt.BasicStroke;
 import java.awt.Polygon;
+import java.awt.color.ColorSpace;
+import java.awt.color.ICC_ColorSpace;
+import java.awt.color.ICC_Profile;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 import java.awt.event.MouseMotionListener;
 import java.awt.geom.AffineTransform;
+import java.awt.image.ColorConvertOp;
 import java.util.Comparator;
 import java.util.HashSet;
 
@@ -53,8 +57,10 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTextField;
+import javax.swing.SpinnerNumberModel;
 import javax.swing.Timer;
-//import org.bytedeco.javacv.FFmpegFrameGrabber;
+import org.bytedeco.javacv.FFmpegFrameGrabber;
+import org.bytedeco.javacv.FrameGrabber;
 
 
 /*
@@ -107,12 +113,20 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
     JButton ApplyFilterButton = new JButton("Apply Filter");
     JCheckBox ShowOutlinesCheckbox = new JCheckBox("Show Object Outlines");
     JCheckBox InterpolateGapsCheckbox = new JCheckBox("Interpolate Gaps");
+    JLabel frameRangeLbl1 = new JLabel("frames");
+    JLabel frameRangeLbl2 = new JLabel("to");
+    JTextField firstFrameChooser = new JTextField(3);
+    JTextField lastFrameChooser = new JTextField(3);
+    String video_filename = "";
+    
     
     JTextField filenameTextBox = new JTextField(10);
     JLabel extensionLbl = new JLabel(".pmoc");
     JButton saveButton = new JButton("Save");
     JButton openButton = new JButton("Open");
     JButton recolorPolygonButton = new JButton("Recolor Selected Polygon");
+    
+    JButton loadVideoButton = new JButton("Load Video");
     
     Set<Point> ObjectSelection = new HashSet();
     
@@ -2565,7 +2579,12 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         graphic.ApplyFilterButton.addActionListener((ActionEvent e) -> {
             graphic.applyFilter();
 
-        });  
+        }); 
+        
+        graphic.loadVideoButton.addActionListener((ActionEvent e) -> {
+            graphic.loadVideo();
+
+        }); 
         
         graphic.CreateFilteredVideoButton.addActionListener((ActionEvent e) -> {
             try {
@@ -2587,9 +2606,15 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         
         
         graphic.buttons.add(graphic.LoadImageButton);
-        graphic.buttons.add(graphic.LoadTrainingImageButton);
-        graphic.buttons.add(graphic.LoadSetImagesButton);
-        graphic.buttons.add(graphic.ResetButton);
+        //graphic.buttons.add(graphic.LoadTrainingImageButton);
+        graphic.buttons.add(graphic.loadVideoButton);
+        
+        //graphic.buttons.add(graphic.frameRangeLbl1);
+        //graphic.buttons.add(graphic.firstFrameChooser);
+        //graphic.buttons.add(graphic.frameRangeLbl2);
+        //graphic.buttons.add(graphic.lastFrameChooser);
+        //graphic.buttons.add(graphic.LoadSetImagesButton);
+        //graphic.buttons.add(graphic.ResetButton);
         graphic.buttons.add(graphic.ResetTrainingButton);
         
         graphic.buttons.add(new JLabel("Filter"));
@@ -2769,9 +2794,9 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         //graphic.buttons2.add(graphic.numberMosaicColumnsBox);
 
         //graphic.buttons2.add(graphic.GenerateTrainingArrangements);
-        graphic.buttons.add(graphic.CreateFilteredVideoButton);
+        //graphic.buttons.add(graphic.CreateFilteredVideoButton);
         graphic.ResetButton.setEnabled(false);
-        
+                
         /*
         graphic.InvertButton.setEnabled(false);
         graphic.GrayScaleButton.setEnabled(false);
@@ -3107,6 +3132,72 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
 
     }
     
+    double getDuration(String filename)
+    {
+        double total_seconds = 0.0;
+        try {
+            String[] command = { 
+                "/usr/local/bin/ffmpeg","-i",filename
+            };
+            
+            Process proc = Runtime.getRuntime().exec(command);
+
+            BufferedReader stdInput = new BufferedReader(new 
+                 InputStreamReader(proc.getInputStream()));
+
+            BufferedReader stdError = new BufferedReader(new 
+                 InputStreamReader(proc.getErrorStream()));
+
+            // read the output from the command
+            System.out.println("Here is the information on the video:\n");
+            String s = null;
+            String outputFromCommand = "";
+            while ((s = stdInput.readLine()) != null) {
+                outputFromCommand += s;
+                System.out.println(s);
+
+            }
+
+            // read any errors from the attempted command
+            String outputInfoFromCommand = "";
+            System.out.println("Here is the standard error of the command (if any):\n");
+            while ((s = stdError.readLine()) != null) {    
+                outputInfoFromCommand += s;
+                System.out.println(s);
+
+            }
+            Scanner inputScanner = new Scanner(outputInfoFromCommand);
+            String durationStr = "";
+            while (inputScanner.hasNext())
+            {
+                
+                String word = inputScanner.next();
+                if (word.equals("Duration:"))
+                {
+                    durationStr = inputScanner.next();
+                    break;
+                }
+            }
+            char[] chars = durationStr.toCharArray(); 
+            int hours = Integer.parseInt(chars[0]+""+chars[1]);
+            int minutes = Integer.parseInt(chars[3]+""+chars[4]);
+            int seconds = Integer.parseInt(chars[6]+""+chars[7]);
+            int millis = Integer.parseInt(chars[9]+""+chars[10]);
+            //totalFramesInVideo = Integer.parseInt(outputFromCommand);
+            //System.out.println(totalFramesInVideo);
+            total_seconds += hours*3600;
+            total_seconds += minutes*60;
+            total_seconds += seconds;
+            total_seconds += millis/100.0;
+            return total_seconds;
+        } catch (IOException ex) {
+            Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, ex);
+        }
+        return frameRate;
+
+    }
+    
+    
     private void extractAndSaveAudioToFile(String video_filename)
     {
         String audio_destination = "/Users/paulsoderquist/NetBeansProjects/ImageEditor/" + "output-audio.aac";
@@ -3410,12 +3501,96 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         }
     }
     
+    public void setCurrentFrame(int frame_number)
+    {
+        try {
+            FFmpegFrameGrabber g = new FFmpegFrameGrabber(video_filename);
+            g.start();
+            g.setFrameNumber(frame_number);
+            BufferedImage bi = g.grab().getBufferedImage();
+            selected_image = bi;
+            image_pixels = toBufferedImage(selected_image);
+            g.stop();
+            repaint();
+        } catch (FrameGrabber.Exception ex) {
+            Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, ex);
+        }
+    }
+    
+    private void loadVideo()
+    {
+        JFileChooser fc = new JFileChooser();
+        fc.setCurrentDirectory(new File(System.getProperty("user.home") 
+                + File.separator + "documents"));
+        fc.showOpenDialog(ImageFilters.this);
+        
+        try
+        {
+            if (fc.getSelectedFile() == null)
+            {
+                return;
+            }
+            Current_Movie_Name = fc.getSelectedFile().getName();
+            String filename = fc.getSelectedFile().getAbsolutePath();
+            video_filename = filename;
+            System.out.println(filename);
+            totalFramesInVideo = 8;//getFrameCount(filename);
+            frameRate = getFrameRate(filename);
+            double duration = getDuration(filename);
+            totalFramesInVideo = (int)(duration*frameRate);
+            hsvColorChooser.video_frame_max = totalFramesInVideo;
+            hsvColorChooser.video_frame_slider.setMaximum(totalFramesInVideo);
+            hsvColorChooser.video_frame_spinner.setModel(new SpinnerNumberModel(0, //initial value
+                               0, //min
+                               totalFramesInVideo, //max
+                               1));
+            setCurrentFrame(0);
+            /*
+            firstFrame = Integer.parseInt(firstFrameChooser.getText());
+            lastFrame = Integer.parseInt(lastFrameChooser.getText());
+            */
+            /*
+            FFmpegFrameGrabber g = new FFmpegFrameGrabber(filename);
+            g.start();
+            g.setFrameNumber(firstFrame);
+            for (int i = firstFrame ; i < totalFramesInVideo-1; i++) {
+                BufferedImage bi = g.grab().getBufferedImage();
+                if (i < firstFrame)
+                {
+                    continue;
+                }
+                if (i > lastFrame)
+                {
+                    break;
+                }
+                selected_image = bi;
+                image_pixels = toBufferedImage(selected_image);
+                ImageIO.write(image_pixels, "png", new File("/Users/paulsoderquist/NetBeansProjects/ImageEditor/tmp/video-frame-" + i + ".png"));
+
+                //ImageIO.write(g.grab().getBufferedImage(), "png", 
+                //        new File(Current_Movie_Name.substring(0, Current_Movie_Name.length()-4)
+                //                +"/video-frame-" + i + ".png"));
+            }
+        System.out.println(System.currentTimeMillis());
+
+            g.stop();
+            */
+        }
+        catch (Exception ex)
+        {
+            
+            System.out.println("There was an error with the file that was selected");
+            Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, ex);
+
+        }
+    }
+    
     private void splitVideoIntoFrames() {
         JFileChooser fc = new JFileChooser();
         fc.setCurrentDirectory(new File(System.getProperty("user.home") 
                 + File.separator + "documents"));
         fc.showOpenDialog(ImageFilters.this);
-        /*
+        
         try
         {
             if (fc.getSelectedFile() == null)
@@ -3426,11 +3601,19 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
             String filename = fc.getSelectedFile().getAbsolutePath();
             System.out.println(filename);
             totalFramesInVideo = getFrameCount(filename);
-
+            firstFrame = 0;
+            lastFrame = totalFramesInVideo +6;
             FFmpegFrameGrabber g = new FFmpegFrameGrabber(filename);
             g.start();
 
             for (int i = 0 ; i < totalFramesInVideo; i++) {
+                BufferedImage bi = g.grab().getBufferedImage();
+                if (i < firstFrame || i > lastFrame)
+                {
+                    continue;
+                }
+                selected_image = bi;
+                image_pixels = toBufferedImage(selected_image);
                 ImageIO.write(image_pixels, "png", new File("/Users/paulsoderquist/NetBeansProjects/ImageEditor/tmp/video-frame-" + i + ".png"));
 
                 //ImageIO.write(g.grab().getBufferedImage(), "png", 
@@ -3448,7 +3631,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
             Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, ex);
 
         }
-        */
+        
     }
     
     private void addSoundToVideo()
@@ -4096,15 +4279,22 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         {
             return -1;
         }
+        double minDistance = 100;
+        int minIndex = -1;
         for (int i = 0; i < selectedPolygon.polygon.npoints; i++)
         {
             double distance = Math.hypot(selectedPolygon.polygon.xpoints[i]-x, selectedPolygon.polygon.ypoints[i]-y);
             if (distance <= 20.0/scale )
             {
-                return i;
+                if (distance < minDistance)
+                {
+                    minDistance = distance;
+                    minIndex = i;
+                }
             }
         }
-        return -1;
+        
+        return minIndex;
     }
     
     private int clickNearVertexOfPolygon(Polygon p, int x, int y) {
@@ -4112,15 +4302,21 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         {
             return -1;
         }
+        double minDistance = 100;
+        int minIndex = -1;
         for (int i = 0; i < p.npoints; i++)
         {
             double distance = Math.hypot(p.xpoints[i]-x, p.ypoints[i]-y);
             if (distance <= 20.0/scale )
             {
-                return i;
+                if (distance < minDistance)
+                {
+                    minDistance = distance;
+                    minIndex = i;
+                }
             }
         }
-        return -1;
+        return minIndex;
     }
     
        
