@@ -44,6 +44,12 @@ public class HSVColorChooser extends JPanel {
     JSpinner hue_spinner;
     JSpinner sat_spinner;
     JSpinner val_spinner;
+    JSpinner video_frame_spinner;
+    
+    JSlider video_frame_slider;
+    int video_frame_min = 0;
+    int video_frame_max = 1;
+    int video_frame_initial = 0;
     
     /*
     JSlider red_slider;
@@ -98,7 +104,7 @@ public class HSVColorChooser extends JPanel {
             @Override
             public void stateChanged(ChangeEvent e) {
                 hue_spinner.setValue((int)(hue_slider.getValue()));
-                calculateRGB();
+                //calculateRGB();
                 repaint();
             }
         });
@@ -130,7 +136,7 @@ public class HSVColorChooser extends JPanel {
             @Override
             public void stateChanged(ChangeEvent e) {
                 sat_spinner.setValue((int)(sat_slider.getValue()));
-                calculateRGB();
+                //calculateRGB();
                 repaint();
             }
         });
@@ -162,7 +168,7 @@ public class HSVColorChooser extends JPanel {
             @Override
             public void stateChanged(ChangeEvent e) {
                 val_spinner.setValue((int)(val_slider.getValue()));
-                calculateRGB();
+                //calculateRGB();
                 repaint();
             }
         });
@@ -177,6 +183,39 @@ public class HSVColorChooser extends JPanel {
         val_panel.add(val_label);
         val_panel.add(val_slider);
         val_panel.add(val_spinner);
+        
+        
+        // -----------------------
+        // Video Frame
+        // -----------------------
+        JPanel video_frame_panel = new JPanel();
+        //JLabel video_frame_label = new JLabel("Frame");
+        video_frame_slider = new JSlider(JSlider.HORIZONTAL,video_frame_min,video_frame_max,video_frame_initial);
+        SpinnerModel video_frame_model =
+        new SpinnerNumberModel(video_frame_initial, //initial value
+                               video_frame_min, //min
+                               video_frame_max, //max
+                               1);                //step
+        video_frame_spinner = new JSpinner(video_frame_model);
+        video_frame_slider.addChangeListener(new ChangeListener() {
+            @Override
+            public void stateChanged(ChangeEvent e) {
+                video_frame_spinner.setValue((int)(video_frame_slider.getValue()));
+                repaint();
+            }
+        });
+        video_frame_spinner.addChangeListener(new ChangeListener() {
+            @Override
+            public void stateChanged(ChangeEvent e) {
+                video_frame_slider.setValue((int)(video_frame_spinner.getValue()));
+                imgFilters.setCurrentFrame((int)(video_frame_spinner.getValue()));
+                repaint();
+            }
+        });
+        //video_frame_panel.add(video_frame_label);
+        video_frame_panel.add(video_frame_slider);
+        video_frame_panel.add(video_frame_spinner);
+        
         
         /*
         // -----------------------
@@ -285,6 +324,8 @@ public class HSVColorChooser extends JPanel {
         this.add(sat_panel);
         this.add(val_panel);
         this.add(new Rectangle());
+        this.add(new JLabel("   Video Frame"));
+        this.add(video_frame_panel);
         //this.add(red_panel);
         //this.add(green_panel);
         //this.add(blue_panel);
@@ -297,10 +338,18 @@ public class HSVColorChooser extends JPanel {
     
     public void setSelectedColor(Color c)
     {
-        red = c.getRed();
-        green = c.getGreen();
-        blue = c.getBlue();
-        
+        if (c == null)
+        {
+            red = 255;
+            green = 255;
+            blue = 255;
+        }
+        else
+        {
+            red = c.getRed();
+            green = c.getGreen();
+            blue = c.getBlue();
+        }
         float[] hsb = Color.RGBtoHSB(red, green, blue, null);
         float hue = hsb[0]; 
         float saturation = hsb[1];
