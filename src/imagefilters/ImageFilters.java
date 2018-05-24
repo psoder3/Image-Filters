@@ -59,6 +59,7 @@ import javax.swing.JScrollPane;
 import javax.swing.JTextField;
 import javax.swing.SpinnerNumberModel;
 import javax.swing.Timer;
+import org.bytedeco.javacpp.opencv_core.IplImage;
 import org.bytedeco.javacv.FFmpegFrameGrabber;
 import org.bytedeco.javacv.FrameGrabber;
 
@@ -118,7 +119,9 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
     JTextField firstFrameChooser = new JTextField(3);
     JTextField lastFrameChooser = new JTextField(3);
     String video_filename = "";
+    FFmpegFrameGrabber g;
     
+    IplImage currentFrame;
     
     JTextField filenameTextBox = new JTextField(10);
     JLabel extensionLbl = new JLabel(".pmoc");
@@ -2642,7 +2645,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         graphic.saveButton.addActionListener((ActionEvent e) -> {
             String filename = graphic.filenameTextBox.getText();
             try {
-                FileWriter fw = new FileWriter(new File(filename+".pmoc"));
+                FileWriter fw = new FileWriter(new File("PMOCs"+File.separator+filename+".pmoc"));
                 fw.append(graphic.scale + "\n");
                 fw.append(graphic.polygons.size()+"\n");
                 for (MaskedObject p : graphic.polygons)
@@ -2660,7 +2663,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                     fw.append("\n");
                 }
                 fw.close();
-                File outputfile = new File(filename+".png");
+                File outputfile = new File("PMOCs"+File.separator+filename+".png");
                 ImageIO.write(graphic.image_pixels, "png", outputfile);
             } catch (IOException ex) {
                 Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, ex);
@@ -2829,7 +2832,14 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         graphic.frame.setExtendedState(graphic.frame.getExtendedState() | JFrame.MAXIMIZED_BOTH);
         graphic.frame.setVisible(true);
         
-        //graphic.getScreenCapture();
+        try {
+            //graphic.getScreenCapture();
+
+            graphic.g.stop();
+        } catch (FrameGrabber.Exception ex) {
+            Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, ex);
+        }
+
     }
 
     private BufferedImage getScreenCapture()
@@ -3501,16 +3511,95 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         }
     }
     
+    public void advanceFrame()
+    {
+        try {
+            if (!hsvColorChooser.lastPressedWasBackward)
+            {
+                currentFrame = g.grab();
+            }
+            BufferedImage bi = currentFrame.getBufferedImage();
+            selected_image = bi;
+            image_pixels = toBufferedImage(selected_image);
+            repaint();
+        } catch (FrameGrabber.Exception ex) {
+            Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, ex);
+        }
+    }
+    
+    public boolean imagesAreEqual(BufferedImage bi1, BufferedImage bi2)
+    {
+        for (int row = 0; row < bi1.getHeight(); row++)
+        {
+            for (int column = 0; column < bi1.getWidth(); column++)
+            {
+                Pixel currentPixel1 = getPixel(column,row,bi1);
+                Pixel currentPixel2 = getPixel(column,row,bi2);
+                if (currentPixel1.getRedValue() != currentPixel2.getRedValue() ||
+                    currentPixel1.getGreenValue() != currentPixel2.getGreenValue() ||
+                    currentPixel1.getBlueValue() != currentPixel2.getBlueValue()    
+                   )
+                {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+    
+    public void goToPreviousFrame()
+    {
+        /*
+            PreviousFrameHack:
+            save current image as currFrame
+            get image stepBack at position currentIndex - 1 until stepBack != currFrame
+            from stepBack grab stepForward (keeping prevImage) until stepForward == currFrame
+            display prevImage
+        */
+        
+        try {
+            BufferedImage currFrame = getImageCopy(image_pixels);
+            int steps = 0;
+            BufferedImage stepBack;
+            do 
+            {
+                steps++;
+                g.setFrameNumber((int)(hsvColorChooser.video_frame_spinner.getValue())-steps);
+                stepBack = g.grab().getBufferedImage();
+            } while (imagesAreEqual(currFrame,stepBack) && steps < 30);
+            if (steps > 25)
+            {
+                System.out.println("Got stuck in first loop. Never found different previous frame");
+            }
+            BufferedImage stepForward = stepBack;
+            BufferedImage prevImage;
+            steps = 0;
+            do
+            {
+                steps++;
+                prevImage = getImageCopy(stepForward);
+                stepForward = g.grab().getBufferedImage();
+            } while (!imagesAreEqual(stepForward,currFrame) && steps < 30);
+            if (steps > 25)
+            {
+                System.out.println("Got stuck in second loop. Never found same frame ahead");
+            }
+            selected_image = prevImage;
+            image_pixels = toBufferedImage(selected_image);
+            repaint();
+        } catch (FrameGrabber.Exception ex) {
+            Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, ex);
+        }
+    }
+    
     public void setCurrentFrame(int frame_number)
     {
         try {
-            FFmpegFrameGrabber g = new FFmpegFrameGrabber(video_filename);
-            g.start();
+            System.out.println(g.getFrameRate());
             g.setFrameNumber(frame_number);
             BufferedImage bi = g.grab().getBufferedImage();
             selected_image = bi;
             image_pixels = toBufferedImage(selected_image);
-            g.stop();
             repaint();
         } catch (FrameGrabber.Exception ex) {
             Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, ex);
@@ -3544,6 +3633,11 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                                0, //min
                                totalFramesInVideo, //max
                                1));
+            
+            g = new FFmpegFrameGrabber(video_filename);
+            g.start();
+            
+            
             setCurrentFrame(0);
             /*
             firstFrame = Integer.parseInt(firstFrameChooser.getText());
