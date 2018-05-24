@@ -3597,7 +3597,14 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         try {
             System.out.println(g.getFrameRate());
             g.setFrameNumber(frame_number);
+            //System.out.println("Number hopefully setting frame to: " + frame_number);
+            frame_number = g.getFrameNumber();            
+
+            //System.out.println("changed our frame number to: " + frame_number);
+            //System.out.println("Number before grabbing: " + g.getFrameNumber());
+
             BufferedImage bi = g.grab().getBufferedImage();
+            //System.out.println("Number after grabbing: " + g.getFrameNumber());
             selected_image = bi;
             image_pixels = toBufferedImage(selected_image);
             repaint();
@@ -3637,8 +3644,12 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
             g = new FFmpegFrameGrabber(video_filename);
             g.start();
             
-            
-            setCurrentFrame(0);
+            if (totalFramesInVideo > 101788)
+            {
+                hsvColorChooser.video_frame_slider.setValue(101788);
+                hsvColorChooser.video_frame_spinner.setValue(101788);
+            }
+            //setCurrentFrame(0);
             /*
             firstFrame = Integer.parseInt(firstFrameChooser.getText());
             lastFrame = Integer.parseInt(lastFrameChooser.getText());
