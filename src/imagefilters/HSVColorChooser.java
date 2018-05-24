@@ -50,7 +50,9 @@ public class HSVColorChooser extends JPanel {
     int video_frame_min = 0;
     int video_frame_max = 1;
     int video_frame_initial = 0;
+    int video_current_value = 0;
     
+    boolean lastPressedWasBackward = false;
     /*
     JSlider red_slider;
     int red_min = 0;
@@ -207,8 +209,23 @@ public class HSVColorChooser extends JPanel {
         video_frame_spinner.addChangeListener(new ChangeListener() {
             @Override
             public void stateChanged(ChangeEvent e) {
-                video_frame_slider.setValue((int)(video_frame_spinner.getValue()));
-                imgFilters.setCurrentFrame((int)(video_frame_spinner.getValue()));
+                int value = (int)(video_frame_spinner.getValue());
+                if (value == video_current_value+1)
+                {
+                    imgFilters.advanceFrame();
+                    lastPressedWasBackward = false;
+                }
+                else if (value == video_current_value-1)
+                {
+                    imgFilters.goToPreviousFrame();
+                    lastPressedWasBackward = true;
+                }
+                else
+                {
+                    video_frame_slider.setValue(value);
+                    imgFilters.setCurrentFrame(value);
+                }
+                video_current_value = value;
                 repaint();
             }
         });
