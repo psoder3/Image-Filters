@@ -9,11 +9,15 @@ import java.awt.Color;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.GridLayout;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import javax.swing.JButton;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JSlider;
 import javax.swing.JSpinner;
+import javax.swing.JTextField;
 import javax.swing.SpinnerModel;
 import javax.swing.SpinnerNumberModel;
 import javax.swing.event.ChangeEvent;
@@ -52,7 +56,15 @@ public class HSVColorChooser extends JPanel {
     int video_frame_initial = 0;
     int video_current_value = 0;
     
+    JButton beginFramesButton = new JButton("Grab Frames For Editing");
+    JTextField numFramesField = new JTextField(3);
+
+    
     boolean lastPressedWasBackward = false;
+    ChangeListener videoSpinnerCL;
+    ChangeListener framesSpinnerCL;
+    ChangeListener videoSliderCL;
+    ChangeListener frameSliderCL;
     /*
     JSlider red_slider;
     int red_min = 0;
@@ -199,14 +211,25 @@ public class HSVColorChooser extends JPanel {
                                video_frame_max, //max
                                1);                //step
         video_frame_spinner = new JSpinner(video_frame_model);
-        video_frame_slider.addChangeListener(new ChangeListener() {
+        videoSliderCL = new ChangeListener() {
             @Override
             public void stateChanged(ChangeEvent e) {
                 video_frame_spinner.setValue((int)(video_frame_slider.getValue()));
                 repaint();
             }
-        });
-        video_frame_spinner.addChangeListener(new ChangeListener() {
+        };
+        
+        frameSliderCL = new ChangeListener() {
+            @Override
+            public void stateChanged(ChangeEvent e) {
+                video_frame_spinner.setValue((int)(video_frame_slider.getValue()));
+                repaint();
+            }
+        };
+        
+        video_frame_slider.addChangeListener(videoSliderCL);
+        
+        videoSpinnerCL = new ChangeListener() {
             @Override
             public void stateChanged(ChangeEvent e) {
                 int value = (int)(video_frame_spinner.getValue());
@@ -228,10 +251,38 @@ public class HSVColorChooser extends JPanel {
                 video_current_value = value;
                 repaint();
             }
-        });
+        };
+        
+        framesSpinnerCL = new ChangeListener() {
+            @Override
+            public void stateChanged(ChangeEvent e) {
+                int value = (int)(video_frame_spinner.getValue());
+                imgFilters.setVideoFrameAlreadySaved(value);
+                video_current_value = value;
+                video_frame_slider.setValue(value);
+            }
+        };
+        
+        video_frame_spinner.addChangeListener(videoSpinnerCL);
         //video_frame_panel.add(video_frame_label);
         video_frame_panel.add(video_frame_slider);
         video_frame_panel.add(video_frame_spinner);
+        
+        numFramesField.setText("5");
+        beginFramesButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                int numberFrames = Integer.parseInt(numFramesField.getText());
+                imgFilters.grabNextFrames(numberFrames,video_current_value);
+                imgFilters.setVideoFrameAlreadySaved(video_current_value+1);
+            }
+        });
+        
+        
+        JPanel grabFramesPanel = new JPanel();
+        grabFramesPanel.add(beginFramesButton);
+        grabFramesPanel.add(numFramesField);
+        
         
         
         /*
@@ -343,9 +394,22 @@ public class HSVColorChooser extends JPanel {
         this.add(new Rectangle());
         this.add(new JLabel("   Video Frame"));
         this.add(video_frame_panel);
+        this.add(grabFramesPanel);
         //this.add(red_panel);
         //this.add(green_panel);
         //this.add(blue_panel);
+    }
+    
+    void swapToFrameChangeListener() {
+        video_frame_spinner.removeChangeListener(videoSpinnerCL);
+        video_frame_spinner.addChangeListener(framesSpinnerCL);
+
+    }
+    
+    void swapToVideoChangeListener() {
+        video_frame_spinner.removeChangeListener(framesSpinnerCL);
+        video_frame_spinner.addChangeListener(videoSpinnerCL);
+
     }
     
     public Color getColor()
@@ -437,6 +501,8 @@ public class HSVColorChooser extends JPanel {
         f.setVisible(true);
         f.pack();
     }
+
+    
 
     class Rectangle extends JPanel {
 
