@@ -49,6 +49,7 @@ import java.awt.event.KeyListener;
 import java.awt.event.MouseMotionListener;
 import java.awt.geom.AffineTransform;
 import java.awt.image.ColorConvertOp;
+import java.io.FileNotFoundException;
 import java.util.Comparator;
 import java.util.HashSet;
 
@@ -120,8 +121,10 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
     JTextField lastFrameChooser = new JTextField(3);
     String video_filename = "";
     FFmpegFrameGrabber g;
-    
     IplImage currentFrame;
+    int currentObjectID = 0;
+    
+    JButton saveVideoFrameButton = new JButton("Save Frame");
     
     JTextField filenameTextBox = new JTextField(10);
     JLabel extensionLbl = new JLabel(".pmoc");
@@ -2325,6 +2328,59 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         repaint();
     }
     
+    public void smartAdd(ArrayList<MaskedObject> fakePolygons, MaskedObject real)
+    {
+        for (MaskedObject p : fakePolygons)
+        {
+            if (p.id == real.id)
+            {
+                p.color = real.color;
+                return;
+            }
+        }
+        fakePolygons.add(real);
+    }
+    
+    public void saveCidsFile(File cids)
+    {
+        try 
+        {
+            ArrayList<MaskedObject> fakePolygons = new ArrayList();
+
+            if (cids.exists())
+            {
+                Scanner reader = new Scanner(cids);
+
+                while (reader.hasNext())
+                {
+                    int id = reader.nextInt();
+                    int r = reader.nextInt();
+                    int g = reader.nextInt();
+                    int b = reader.nextInt();
+                    MaskedObject fake = new MaskedObject();
+                    fake.id = id;
+                    fake.color = new Color(r,g,b);
+                    fakePolygons.add(fake);
+                }
+                
+                reader.close();
+            }
+            for (MaskedObject p : polygons)
+            {
+                smartAdd(fakePolygons,p);
+            }
+            FileWriter fw = new FileWriter(cids);
+            for (MaskedObject p : fakePolygons)
+            {
+                fw.append(p.id + " " + p.color.getRed() + " " + p.color.getGreen() + " " + p.color.getBlue() + "\n");
+            }
+            fw.close();
+        } catch (IOException ex) {
+            Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, ex);
+        }
+        
+    }
+    
     public static void main(String[] args) {
         
         
@@ -2611,6 +2667,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         graphic.buttons.add(graphic.LoadImageButton);
         //graphic.buttons.add(graphic.LoadTrainingImageButton);
         graphic.buttons.add(graphic.loadVideoButton);
+        graphic.buttons.add(graphic.saveVideoFrameButton);
         
         //graphic.buttons.add(graphic.frameRangeLbl1);
         //graphic.buttons.add(graphic.firstFrameChooser);
@@ -2640,6 +2697,40 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         //graphic.buttons2.add(graphic.TwoNeighboKeyButton);
         //graphic.buttons2.add(graphic.InterpolateGapsCheckbox);
         //graphic.buttons2.add(graphic.FillInBlanksBox);
+        
+        graphic.saveVideoFrameButton.addActionListener((ActionEvent e) -> {
+            if (graphic.g == null)
+            {
+                return;
+            }
+            File cids = new File("Video Frame PMOCs" + File.separator + "ids.cids");
+            graphic.saveCidsFile(cids);
+            String filename = graphic.filenameTextBox.getText();
+            int frameNumber = graphic.hsvColorChooser.video_current_value;
+            try {
+                FileWriter fw = new FileWriter(new File("Video Frame PMOCs"+File.separator+"video-frame-" + frameNumber + ".pmoc"));
+                fw.append(graphic.scale + "\n");
+                fw.append(graphic.polygons.size()+"\n");
+                for (MaskedObject p : graphic.polygons)
+                {
+                    //fw.append("ID: " + p.id + "\n");
+                    fw.append("rgb " + p.color.getRed() + " " + p.color.getGreen() + " " + p.color.getBlue() + "\n");
+                    fw.append(p.polygon.npoints+"\n");
+                    for (int i = 0; i < p.polygon.npoints; i++)
+                    {
+                        fw.append(p.polygon.xpoints[i] + " ");
+                        fw.append(p.polygon.ypoints[i] + " ");
+                    }
+                    fw.append("\n");
+                }
+                fw.close();
+                File outputfile = new File("Video Frame PMOCs"+File.separator+"video-frame-" + frameNumber + ".png");
+                ImageIO.write(graphic.image_pixels, "png", outputfile);
+            } catch (IOException ex) {
+                Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, ex);
+            }
+            
+        }); 
         
         
         graphic.saveButton.addActionListener((ActionEvent e) -> {
@@ -2688,41 +2779,8 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                     return;
                 }
                 File selected_pmoc_file = fc.getSelectedFile();
-                Scanner reader = new Scanner(selected_pmoc_file);
-                double scale = reader.nextDouble();
-                int numPolygons = reader.nextInt();
-                graphic.polygons = new ArrayList();
-                
-                for (int i = 0; i < numPolygons; i++)
-                {
-                    MaskedObject poly = new MaskedObject();
-                    String next = reader.next();
-                    int numVertices;
-                    if (next.equals("rgb"))
-                    {
-                        int r = reader.nextInt();
-                        int g = reader.nextInt();
-                        int b = reader.nextInt();
-                        poly.color = new Color(r,g,b);
-                        numVertices = reader.nextInt();
-                    }
-                    else
-                    {
-                        numVertices = Integer.parseInt(next);
-                    }
-                    for (int j = 0; j < numVertices; j++)
-                    {
-                        int xcoord = reader.nextInt();
-                        int ycoord = reader.nextInt();
-                        poly.polygon.addPoint(xcoord, ycoord);
-                    }
-                    graphic.polygons.add(poly);
-                }
-                String name = selected_pmoc_file.getName();
-                graphic.selected_file = new File(name.substring(0,name.length()-5) + ".png");
-                graphic.selected_image = ImageIO.read(graphic.selected_file);
-                graphic.image_pixels = graphic.toBufferedImage(graphic.selected_image);
-
+                graphic.loadPMOC(selected_pmoc_file);
+                graphic.loadPMOCImage(selected_pmoc_file);
                 graphic.repaint();
             }
             catch (Exception ex)
@@ -3511,6 +3569,93 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         }
     }
     
+    public void openCidsFile()
+    {
+        try {
+            File cidsFile = new File("ids.cids");
+            Scanner file_in = new Scanner(cidsFile);
+            while (file_in.hasNextLine())
+            {
+                int id = file_in.nextInt();
+                int r = file_in.nextInt();
+                int g = file_in.nextInt();
+                int b = file_in.nextInt();
+                
+                for (MaskedObject p : polygons)
+                {
+                    if (p.id == id)
+                    {
+                        p.color = new Color(r,g,b);
+                        break;
+                    }
+                }
+                currentObjectID = id+1;
+            }
+        } catch (FileNotFoundException ex) {
+            Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, ex);
+        }
+    }
+    
+    public void openVideoPMOC(String filepath, File pmoc)
+    {
+        polygons.clear();
+        try {
+            Scanner reader = new Scanner(pmoc);
+            double scale = reader.nextDouble();
+            int numPolygons = reader.nextInt();
+            polygons = new ArrayList();
+            
+            for (int i = 0; i < numPolygons; i++)
+            {
+                MaskedObject poly = new MaskedObject();
+                String next = reader.next();
+                int numVertices;
+                
+                if (next.equals("ID:"))
+                {
+                    int oid = reader.nextInt();
+                    poly.id = oid;
+                    poly.color = getColorById(oid);
+                    numVertices = reader.nextInt();
+                }
+                else
+                {
+                    numVertices = Integer.parseInt(next);
+                }
+                for (int j = 0; j < numVertices; j++)
+                {
+                    int xcoord = reader.nextInt();
+                    int ycoord = reader.nextInt();
+                    poly.polygon.addPoint(xcoord, ycoord);
+                }
+                polygons.add(poly);
+            }
+            
+            openCidsFile();
+            
+            selected_file = new File(filepath + ".png");
+            selected_image = ImageIO.read(selected_file);
+            image_pixels = toBufferedImage(selected_image);
+        } catch (FileNotFoundException ex) {
+            Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (IOException ex) {
+            Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, ex);
+        }
+    }
+    
+    public boolean tryAlreadyHaveImage()
+    {
+        String filename = filenameTextBox.getText();
+        int frameNumber = hsvColorChooser.video_current_value;
+        String filepath = "Video Frame PMOCs"+File.separator+filename+"-" + frameNumber;    
+        File pmoc = new File(filepath + ".pmoc");
+        if(pmoc.exists() && !pmoc.isDirectory()) {
+            openVideoPMOC(filepath, pmoc);
+            return true;
+        }
+        return false;
+    }
+    
     public void advanceFrame()
     {
         try {
@@ -3519,8 +3664,16 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                 currentFrame = g.grab();
             }
             BufferedImage bi = currentFrame.getBufferedImage();
-            selected_image = bi;
-            image_pixels = toBufferedImage(selected_image);
+            
+            //if (tryAlreadyHaveImage())
+            {
+                // do nothing
+            }
+            //else
+            {
+                selected_image = bi;
+                image_pixels = toBufferedImage(selected_image);
+            }
             repaint();
         } catch (FrameGrabber.Exception ex) {
             Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, ex);
@@ -3586,6 +3739,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
             }
             selected_image = prevImage;
             image_pixels = toBufferedImage(selected_image);
+            //tryAlreadyHaveImage();
             repaint();
         } catch (FrameGrabber.Exception ex) {
             Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, ex);
@@ -3609,6 +3763,88 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
             image_pixels = toBufferedImage(selected_image);
             repaint();
         } catch (FrameGrabber.Exception ex) {
+            Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, ex);
+        }
+    }
+    
+    public void loadPMOCImage(File selected_pmoc_file)
+    {
+        try {
+            String name = selected_pmoc_file.getName();
+            selected_file = new File(name.substring(0,name.length()-5) + ".png");
+            selected_image = ImageIO.read(selected_file);
+            image_pixels = toBufferedImage(selected_image);
+            repaint();
+        } catch (IOException ex) {
+            Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, ex);
+        }
+    }
+    
+    public void loadPMOC(File selected_pmoc_file)
+    {
+        try {
+            Scanner reader = new Scanner(selected_pmoc_file);
+            double scale = reader.nextDouble();
+            int numPolygons = reader.nextInt();
+            polygons = new ArrayList();
+            
+            for (int i = 0; i < numPolygons; i++)
+            {
+                MaskedObject poly = new MaskedObject();
+                String next = reader.next();
+                int numVertices;
+                if (next.equals("rgb"))
+                {
+                    int r = reader.nextInt();
+                    int g = reader.nextInt();
+                    int b = reader.nextInt();
+                    poly.color = new Color(r,g,b);
+                    numVertices = reader.nextInt();
+                }
+                /* FOR NOW JUST DON'T OPEN A VIDEO FRAME PMOC
+                
+                else if (next.equals("ID:"))
+                {
+                if (graphic.idList == null)
+                {
+                graphic.idList = new ArrayList();
+                File cidsFile = new File("ids.cids");
+                Scanner file_in = new Scanner(cidsFile);
+                while (file_in.hasNextLine())
+                {
+                int id = file_in.nextInt();
+                int r = file_in.nextInt();
+                int g = file_in.nextInt();
+                int b = file_in.nextInt();
+                ColorID cid = new ColorID();
+                cid.color = new Color(r,g,b);
+                cid.id = id;
+                graphic.idList.add(cid);
+                }
+                }
+                int oid = reader.nextInt();
+                poly.color = graphic.getColorById(oid);
+                numVertices = reader.nextInt();
+                }
+                */
+                else
+                {
+                    numVertices = Integer.parseInt(next);
+                }
+                for (int j = 0; j < numVertices; j++)
+                {
+                    int xcoord = reader.nextInt();
+                    int ycoord = reader.nextInt();
+                    poly.polygon.addPoint(xcoord, ycoord);
+                }
+                polygons.add(poly);
+            }
+            
+            
+            repaint();
+        } catch (FileNotFoundException ex) {
+            Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (IOException ex) {
             Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, ex);
         }
     }
@@ -3640,14 +3876,24 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                                0, //min
                                totalFramesInVideo, //max
                                1));
-            
-            g = new FFmpegFrameGrabber(video_filename);
-            g.start();
-            
-            if (totalFramesInVideo > 101788)
+            File f = new File("Video Frame PMOCs" + File.separator + Current_Movie_Name + ".vmoc");
+            if (f.exists() && !f.isDirectory())
             {
-                hsvColorChooser.video_frame_slider.setValue(101788);
-                hsvColorChooser.video_frame_spinner.setValue(101788);
+                Scanner file_in = new Scanner(f);
+                int fFrame = file_in.nextInt();
+                int numFrames = file_in.nextInt();
+                switchToFramesEditor(numFrames, fFrame);
+            }
+            else
+            {
+                g = new FFmpegFrameGrabber(video_filename);
+                g.start();
+
+                if (totalFramesInVideo > 101788)
+                {
+                    hsvColorChooser.video_frame_slider.setValue(101788);
+                    hsvColorChooser.video_frame_spinner.setValue(101788);
+                }
             }
             //setCurrentFrame(0);
             /*
@@ -3689,6 +3935,93 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
 
         }
     }
+    
+    void changeSpinnerActionListeners()
+    {
+        hsvColorChooser.swapToFrameChangeListener();
+        hsvColorChooser.beginFramesButton.setEnabled(false);
+        hsvColorChooser.numFramesField.setEnabled(false);
+        hsvColorChooser.repaint();
+        repaint();
+    }
+    
+    void setVideoFrameAlreadySaved(int frameNumber)
+    {
+        try {
+            String filename = "Video Frame PMOCs" + File.separator + "video-frame-" + frameNumber + ".png";
+            String pmocfilename = "Video Frame PMOCs" + File.separator + "video-frame-" + frameNumber + ".pmoc";
+            selected_file = new File(filename);
+            selected_image = ImageIO.read(selected_file);
+            image_pixels = toBufferedImage(selected_image);
+            File pmoc = new File(pmocfilename);
+            if (pmoc.exists())
+            {
+                loadPMOC(pmoc);
+                selectedPolygon = null;
+                selectedVertexIndex = -1;
+            }
+            repaint();
+        } catch (IOException ex) {
+            Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, ex);
+        }
+    }
+    
+    public void switchToFramesEditor(int numberFrames, int firstFrame)
+    {
+        changeSpinnerActionListeners();
+        hsvColorChooser.video_frame_slider.setMaximum(firstFrame+numberFrames);
+        hsvColorChooser.video_frame_slider.setMinimum(firstFrame+1);
+        hsvColorChooser.video_frame_slider.setValue(firstFrame+1);
+        hsvColorChooser.video_frame_spinner.setModel(new SpinnerNumberModel(firstFrame+1, //initial value
+                           firstFrame+1, //min
+                           firstFrame+numberFrames, //max
+                           1));
+        hsvColorChooser.repaint();
+    }
+    
+    void grabNextFrames(int numberFrames, int firstFrame) {
+        FileWriter fw = null;
+        try {
+            File f = new File("Video Frame PMOCs" + File.separator + Current_Movie_Name + ".vmoc");
+            fw = new FileWriter(f);
+            fw.append(firstFrame + " " + numberFrames);
+            fw.close();
+            for (int i = 0 ; i < numberFrames; i++) {
+                try {
+                    BufferedImage bi = g.grab().getBufferedImage();
+                    
+                    selected_image = bi;
+                    image_pixels = toBufferedImage(selected_image);
+                    ImageIO.write(image_pixels, "png", new File("Video Frame PMOCs" + File.separator + "video-frame-" + (i+1+firstFrame) + ".png"));
+                    
+                    //ImageIO.write(g.grab().getBufferedImage(), "png",
+                    //        new File(Current_Movie_Name.substring(0, Current_Movie_Name.length()-4)
+                    //                +"/video-frame-" + i + ".png"));
+                } catch (IOException | FrameGrabber.Exception ex) {
+                    Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, ex);
+                }
+            }   
+            switchToFramesEditor(numberFrames, firstFrame);
+            hsvColorChooser.video_frame_slider.setMaximum(firstFrame+numberFrames);
+            hsvColorChooser.video_frame_slider.setMinimum(firstFrame+1);
+            hsvColorChooser.video_frame_slider.setValue(firstFrame+1);
+            hsvColorChooser.video_frame_spinner.setModel(new SpinnerNumberModel(firstFrame+1, //initial value
+                    firstFrame+1, //min
+                    firstFrame+numberFrames, //max
+                    1));
+            changeSpinnerActionListeners();
+            hsvColorChooser.repaint();
+        } catch (IOException ex) {
+            Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, ex);
+        } finally {
+            try {
+                fw.close();
+            } catch (IOException ex) {
+                Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, ex);
+            }
+        }
+    }
+    
     
     private void splitVideoIntoFrames() {
         JFileChooser fc = new JFileChooser();
@@ -4279,6 +4612,19 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         System.out.println(filledCounter + "/256 containers filled");
     }
 
+    public Color getColorById(int id)
+    {
+        for (MaskedObject p : polygons)
+        {
+            if (p.id == id)
+            {
+                return p.color;
+            }
+        }
+        return null;
+    }
+    
+    
     private void validateDraggingAdjacentObject(int x, int y)
     {
         // Check if they're trying to click along a border of another polygon
@@ -4491,6 +4837,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                 if (selectedPolygon == null)
                 {
                     selectedPolygon = new MaskedObject();
+                    selectedPolygon.id = ++currentObjectID;
                     polygons.add(selectedPolygon);
                 }
                 if (adjacentPolygon != null && adjacentPolygonVertex != -1)
@@ -4964,8 +5311,6 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         colorizePolygon(selectedPolygon.color);
         repaint();
     }
-
-    
     
     
     class Pair implements Comparable {
@@ -5188,8 +5533,10 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
 
 class MaskedObject
 {
+    
     Polygon polygon;
     Color color;
+    int id;
     
     public MaskedObject()
     {
@@ -5197,3 +5544,4 @@ class MaskedObject
     }
     
 }
+
