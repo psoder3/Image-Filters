@@ -2056,7 +2056,14 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                         g.setColor(Color.GREEN);
                     }
                     g.drawPolygon(p.polygon);
+                    if (p.equals(selectedPolygon))
+                    {
+                        g.setColor(Color.GREEN);
+                        g.drawLine(p.polygon.xpoints[selectedVertexIndex], p.polygon.ypoints[selectedVertexIndex],
+                                p.polygon.xpoints[0], p.polygon.ypoints[0]);
+                    }
                 }
+                
             }
             if (selectedVertexIndex != -1)
             {
@@ -2701,7 +2708,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         graphic.saveVideoFrameButton.addActionListener((ActionEvent e) -> {
             if (graphic.g == null)
             {
-                return;
+                //return;
             }
             File cids = new File("Video Frame PMOCs" + File.separator + "ids.cids");
             graphic.saveCidsFile(cids);
@@ -2714,7 +2721,14 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                 for (MaskedObject p : graphic.polygons)
                 {
                     //fw.append("ID: " + p.id + "\n");
-                    fw.append("rgb " + p.color.getRed() + " " + p.color.getGreen() + " " + p.color.getBlue() + "\n");
+                    if (p.color == null)
+                    {
+                        fw.append("rgb 0 0 0\n");
+                    }
+                    else
+                    {
+                        fw.append("rgb " + p.color.getRed() + " " + p.color.getGreen() + " " + p.color.getBlue() + "\n");
+                    }
                     fw.append(p.polygon.npoints+"\n");
                     for (int i = 0; i < p.polygon.npoints; i++)
                     {
@@ -4831,6 +4845,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                 int y = selectedPolygon.polygon.ypoints[index];
                 //selectedVertex = new Point(x,y);
                 selectedVertexIndex = index;
+                cycleToSelected();
             }
             else
             {
@@ -4844,6 +4859,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                 {
                     selectedPolygon.polygon.addPoint(adjacentPolygon.polygon.xpoints[adjacentPolygonVertex],
                             adjacentPolygon.polygon.ypoints[adjacentPolygonVertex]);
+                    
                 }
                 else
                 {
@@ -4879,6 +4895,27 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         this.requestFocus();
     }
 
+    public void cycleToSelected()
+    {
+        int numPoints = selectedPolygon.polygon.npoints;
+        while (selectedVertexIndex != numPoints - 1)
+        {
+            int tempX = selectedPolygon.polygon.xpoints[numPoints-1];
+            int tempY = selectedPolygon.polygon.ypoints[numPoints-1];
+            for (int i = numPoints-2; i >= 0; i--)
+            {
+                selectedPolygon.polygon.xpoints[i+1] = selectedPolygon.polygon.xpoints[i];
+                selectedPolygon.polygon.ypoints[i+1] = selectedPolygon.polygon.ypoints[i];
+            }
+            selectedPolygon.polygon.xpoints[0] = tempX;
+            selectedPolygon.polygon.ypoints[0] = tempY;
+            selectedVertexIndex++;
+        }
+        hoverVertexIndex = -1;
+        selectedPolygon.polygon.invalidate();
+        repaint();
+    }
+    
     @Override
     public void mousePressed(MouseEvent e) {
         if (!toolList.getSelectedItem().equals("Vertex Mode"))
