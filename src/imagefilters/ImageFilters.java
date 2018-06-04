@@ -41,6 +41,7 @@ import javax.swing.JComboBox;
 import imagefilters.ColorChooserButton.ColorChangedListener;
 import java.awt.BasicStroke;
 import java.awt.Polygon;
+import java.awt.Stroke;
 import java.awt.color.ColorSpace;
 import java.awt.color.ICC_ColorSpace;
 import java.awt.color.ICC_Profile;
@@ -155,6 +156,10 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
     boolean currentlyDragging = false;
     MaskedObject adjacentPolygon;
     int adjacentPolygonVertex = -1;
+    Click DragDown;
+    Click DragUp;
+    ArrayList<MaskedObject> selectedObjects = new ArrayList();
+    ArrayList<ArrayList<Integer>> selectedVertices = new ArrayList();
     
     Rectangle rectangle;
 
@@ -167,7 +172,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
 
     String[] keyStrings = { "0 Neighbors", "1 Neighbor", "2 Neighbors", "3 Neighbors",
         "4 Neighbors", "Optimized Interpolate"};
-    String[] toolStrings = { "Select Polygon Mode", "Vertex Mode", "Magic Select"};
+    String[] toolStrings = { "Select Polygon Mode", "Vertex Mode", "Drag Select Objects", "Drag Select Vertices"};
     ArrayList<Pixel>[][][][][] optInterpolationDictionary = new ArrayList[256][][][][];
     ArrayList<Pair>[] neighborMeanMap = new ArrayList[256];
 
@@ -2138,6 +2143,45 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
             if (rectangle != null)
             {
                 g.drawRect(rectangle.x, rectangle.y, rectangle.width, rectangle.height);
+            }
+            if (DragUp != null)
+            {
+                g2d.setColor(Color.CYAN);
+                Stroke dashed = new BasicStroke(3, BasicStroke.CAP_BUTT, BasicStroke.JOIN_BEVEL, 0, new float[]{9}, 0);
+                g2d.setStroke(dashed);
+                g2d.drawRect(DragDown.x, DragDown.y, DragUp.x - DragDown.x, DragUp.y - DragDown.y);
+            }
+            if (!selectedObjects.isEmpty() && toolList.getSelectedItem().equals("Drag Select Objects"))
+            {
+                g.setColor(Color.CYAN);
+                for (MaskedObject p : selectedObjects)
+                {
+                    g.drawPolygon(p.polygon);
+                }
+            }
+            if (!selectedVertices.isEmpty() && toolList.getSelectedItem().equals("Drag Select Vertices"))
+            {
+                g.setColor(Color.CYAN);
+                int dotWidth = (int)(5/(scale/2));
+                if (dotWidth < 1)
+                {
+                    dotWidth = 1;
+                }
+                int dotOffset = (int)(2/(scale/2));
+                if (dotOffset < 1)
+                {
+                    dotOffset = 1;
+                }
+                for (int i = 0; i < selectedVertices.size(); i++)
+                {
+                    ArrayList<Integer> vertList = selectedVertices.get(i);
+                    Polygon p = selectedObjects.get(i).polygon;
+
+                    for (int j = 0; j < vertList.size(); j++)
+                    {
+                        g.fillOval(p.xpoints[vertList.get(j)] - dotOffset, p.ypoints[vertList.get(j)] - dotOffset, dotWidth, dotWidth);
+                    }
+                }
             }
         } finally {
             g2d.setTransform(saveTransform);
@@ -4787,36 +4831,18 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
        
     @Override
     public void mouseClicked(MouseEvent e) {
-        
-        int screenWidth = frame.getBounds().width;
-        int screenHeight = frame.getBounds().height;
-        int imgLeftX = 0;
-        int imgTopY = 0;
-        if (selected_image != null)
-        {
-            imgLeftX = screenWidth/2 - selected_image.getWidth(null)/2;
-            imgTopY = screenHeight/2 - selected_image.getHeight(null)/2;
-        }
-        
-        int clickedX = 0;
-        int clickedY = 0;
-        
-        clickedX += (int)((e.getX()+leftRight*scrollAmount*scale)/scale);
-        clickedY += (int)((e.getY()+upDown*scrollAmount*scale)/scale);
-        
-        clickedX -= (screenWidth/2)/scale;
-        clickedY -= (screenHeight/2)/scale;
+        Click click = convertClick(e);
 
         if (toolList.getSelectedItem().equals("Magic Select"))
         {
-            magicSelect(clickedX, clickedY);
+            magicSelect(click.x, click.y);
             //QuickFill.quickFillSelect(e.getX(),e.getY(), image_pixels);
             repaint();
             return;
         }
         else if (toolList.getSelectedItem().equals("Select Polygon Mode"))
         {
-            MaskedObject clickedObject = pointIsContainedByObject(clickedX, clickedY);
+            MaskedObject clickedObject = pointIsContainedByObject(click.x, click.y);
             if (clickedObject != null)
             {
                 selectedPolygon = clickedObject;
@@ -4838,7 +4864,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         }
         else if (toolList.getSelectedItem().equals("Vertex Mode"))
         {
-            int index = clickNearVertex(clickedX, clickedY);
+            int index = clickNearVertex(click.x, click.y);
             if (index != -1)
             {
                 int x = selectedPolygon.polygon.xpoints[index];
@@ -4863,7 +4889,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                 }
                 else
                 {
-                    selectedPolygon.polygon.addPoint(clickedX, clickedY);
+                    selectedPolygon.polygon.addPoint(click.x, click.y);
                     //selectedVertex = new Point(e.getX(), e.getY());
                 }
                 selectedVertexIndex = selectedPolygon.polygon.npoints-1;
@@ -4918,20 +4944,93 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
     
     @Override
     public void mousePressed(MouseEvent e) {
-        if (!toolList.getSelectedItem().equals("Vertex Mode"))
+        if (!toolList.getSelectedItem().equals("Vertex Mode") 
+                && !toolList.getSelectedItem().equals("Drag Select Objects")
+                && !toolList.getSelectedItem().equals("Drag Select Vertices"))
         {
             return;
         }
-        if (hoverVertexIndex != -1)
+        if (toolList.getSelectedItem().equals("Drag Select Objects") || 
+                toolList.getSelectedItem().equals("Drag Select Vertices"))
         {
-            selectedVertexIndex = hoverVertexIndex;
-            currentlyDragging = true;
+            DragDown = convertClick(e);
+            selectedObjects.clear();
+            selectedVertices.clear();
+            
+        }
+        else
+        {
+            if (hoverVertexIndex != -1)
+            {
+                selectedVertexIndex = hoverVertexIndex;
+                currentlyDragging = true;
+            }
         }
     }
 
+    public void selectObjects()
+    {
+        int width = DragUp.x - DragDown.x;
+        int height = DragUp.y - DragDown.y;
+        Rectangle rect = new Rectangle(DragDown.x, DragDown.y, width, height);
+        for (MaskedObject p : polygons)
+        {
+            for (int i = 0; i < p.polygon.npoints; i++)
+            {
+                Point p2 = new Point(p.polygon.xpoints[i], p.polygon.ypoints[i]);
+                if (rect.contains(p2.x,p2.y))
+                {
+                    selectedObjects.add(p);
+                    break;
+                }
+            }
+        }
+    }
+    
+    public void selectVertices()
+    {
+        int width = DragUp.x - DragDown.x;
+        int height = DragUp.y - DragDown.y;
+        Rectangle rect = new Rectangle(DragDown.x, DragDown.y, width, height);
+        for (MaskedObject p : polygons)
+        {
+            ArrayList<Integer> vertexList = new ArrayList();
+
+            for (int i = 0; i < p.polygon.npoints; i++)
+            {
+                Point p2 = new Point(p.polygon.xpoints[i], p.polygon.ypoints[i]);
+                if (rect.contains(p2.x,p2.y))
+                {
+                    if (!selectedObjects.contains(p))
+                    {
+                        selectedObjects.add(p);
+                    }
+                    vertexList.add(i);
+                }
+            }
+            if (vertexList.size() > 0)
+            {
+                selectedVertices.add(vertexList);
+            }
+        }
+    }
+    
     @Override
     public void mouseReleased(MouseEvent e) {
         currentlyDragging = false;
+        if (toolList.getSelectedItem().equals("Drag Select Objects"))
+        {
+            //lisa falls .5 miles rappel optional 60 ft 
+            selectObjects();
+            DragUp = null;
+        }
+        else if (toolList.getSelectedItem().equals("Drag Select Vertices"))
+        {
+            selectVertices();
+            DragUp = null;
+        }
+        
+        repaint();
     }
 
     @Override
@@ -4940,6 +5039,31 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
 
     @Override
     public void mouseExited(MouseEvent e) {
+    }
+    
+    public Click convertClick(MouseEvent e) {
+        Click click = new Click();
+        int screenWidth = frame.getBounds().width;
+        int screenHeight = frame.getBounds().height;
+        int imgLeftX = 0;
+        int imgTopY = 0;
+        if (selected_image != null)
+        {
+            imgLeftX = screenWidth/2 - selected_image.getWidth(null)/2;
+            imgTopY = screenHeight/2 - selected_image.getHeight(null)/2;
+        }
+        
+        int clickedX = 0;
+        int clickedY = 0;
+        
+        clickedX += (int)((e.getX()+leftRight*scrollAmount*scale)/scale);
+        clickedY += (int)((e.getY()+upDown*scrollAmount*scale)/scale);
+        
+        clickedX -= (screenWidth/2)/scale;
+        clickedY -= (screenHeight/2)/scale;
+        click.x = clickedX;
+        click.y = clickedY;
+        return click;
     }
     
     @Override
@@ -4953,26 +5077,10 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         {
             return;
         }
-       int screenWidth = frame.getBounds().width;
-        int screenHeight = frame.getBounds().height;
-        int imgLeftX = 0;
-        int imgTopY = 0;
-        if (selected_image != null)
-        {
-            imgLeftX = screenWidth/2 - selected_image.getWidth(null)/2;
-            imgTopY = screenHeight/2 - selected_image.getHeight(null)/2;
-        }
-        
-        int clickedX = 0;
-        int clickedY = 0;
-        
-        clickedX += (int)((e.getX()+leftRight*scrollAmount*scale)/scale);
-        clickedY += (int)((e.getY()+upDown*scrollAmount*scale)/scale);
-        
-        clickedX -= (screenWidth/2)/scale;
-        clickedY -= (screenHeight/2)/scale;
+       Click click = convertClick(e);
+       
         int oldHover = hoverVertexIndex;
-        hoverVertexIndex = clickNearVertex(clickedX,clickedY);
+        hoverVertexIndex = clickNearVertex(click.x,click.y);
         
         if (oldHover != hoverVertexIndex)
         {
@@ -4980,7 +5088,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         }
         
         int oldHoverAdjacent = adjacentPolygonVertex;
-        validateHoveringAdjacentObject(clickedX,clickedY);
+        validateHoveringAdjacentObject(click.x,click.y);
         if (oldHoverAdjacent != adjacentPolygonVertex)
         {
             repaint();
@@ -4990,28 +5098,11 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
 
     @Override
     public void mouseDragged(MouseEvent e) {
-        int screenWidth = frame.getBounds().width;
-        int screenHeight = frame.getBounds().height;
-        int imgLeftX = 0;
-        int imgTopY = 0;
-        if (selected_image != null)
-        {
-            imgLeftX = screenWidth/2 - selected_image.getWidth(null)/2;
-            imgTopY = screenHeight/2 - selected_image.getHeight(null)/2;
-        }
-
-        int clickedX = 0;
-        int clickedY = 0;
-
-        clickedX += (int)((e.getX()+leftRight*scrollAmount*scale)/scale);
-        clickedY += (int)((e.getY()+upDown*scrollAmount*scale)/scale);
-
-        clickedX -= (screenWidth/2)/scale;
-        clickedY -= (screenHeight/2)/scale;
+        Click click = convertClick(e);
         
         if (currentlyDragging)
         {     
-            validateDraggingAdjacentObject(clickedX,clickedY);
+            validateDraggingAdjacentObject(click.x,click.y);
             if (adjacentPolygonVertex != -1)
             {               
                 selectedPolygon.polygon.xpoints[selectedVertexIndex] = adjacentPolygon.polygon.xpoints[adjacentPolygonVertex];
@@ -5019,8 +5110,8 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
             }
             else
             {
-                selectedPolygon.polygon.xpoints[selectedVertexIndex] = clickedX;
-                selectedPolygon.polygon.ypoints[selectedVertexIndex] = clickedY;
+                selectedPolygon.polygon.xpoints[selectedVertexIndex] = click.x;
+                selectedPolygon.polygon.ypoints[selectedVertexIndex] = click.y;
             }
             // This code below fixes the problem of the points being directly 
             // manipulated and the bounding box not updated
@@ -5031,6 +5122,15 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         //{
         //    repaint();
         //}
+        
+        
+        if (toolList.getSelectedItem().equals("Drag Select Objects") ||
+                toolList.getSelectedItem().equals("Drag Select Vertices"))
+        {
+            DragUp = convertClick(e);
+            
+        }
+        
         repaint();
         
     }
@@ -5263,44 +5363,152 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         
         
         
-        if (selectedVertexIndex == -1)
-        {
-            return;
-        }
+        
         if (e.getKeyCode() == KeyEvent.VK_W)
         {
-            //System.out.println("Pressed UP");
-            selectedPolygon.polygon.ypoints[selectedVertexIndex]--;
-            //selectedVertex.y = selectedPolygon.ypoints[selectedVertexIndex];
-            selectedPolygon.polygon.invalidate();
+            
+            if (!selectedObjects.isEmpty() && toolList.getSelectedItem().equals("Drag Select Objects"))
+            {
+                for (MaskedObject p : selectedObjects)
+                {
+                    for (int i = 0; i < p.polygon.npoints; i++)
+                    {
+                        p.polygon.ypoints[i]--;
+                    }
+                    p.polygon.invalidate();
+                }
+            }
+            else if (!selectedObjects.isEmpty() && toolList.getSelectedItem().equals("Drag Select Vertices"))
+            {
+                for (int i = 0; i < selectedVertices.size(); i++)
+                {
+                    ArrayList<Integer> vertList = selectedVertices.get(i);
+                    Polygon p = selectedObjects.get(i).polygon;
+                    for (int j = 0; j < selectedVertices.get(i).size(); j++)
+                    {
+                        p.ypoints[vertList.get(j)]--;
+                    }
+                    p.invalidate();
+                }
+            }
+            else if (selectedPolygon != null)
+            {
+                //System.out.println("Pressed UP");
+                selectedPolygon.polygon.ypoints[selectedVertexIndex]--;
+                //selectedVertex.y = selectedPolygon.ypoints[selectedVertexIndex];
+                selectedPolygon.polygon.invalidate();
+            }
             repaint();
             return;
         }
         if (e.getKeyCode() == KeyEvent.VK_S)
         {
-            //System.out.println("Pressed DOWN");
-            selectedPolygon.polygon.ypoints[selectedVertexIndex]++;
-            //selectedVertex.y = selectedPolygon.ypoints[selectedVertexIndex];
-            selectedPolygon.polygon.invalidate();
+            
+            if (!selectedObjects.isEmpty() && toolList.getSelectedItem().equals("Drag Select Objects"))
+            {
+                for (MaskedObject p : selectedObjects)
+                {
+                    for (int i = 0; i < p.polygon.npoints; i++)
+                    {
+                        p.polygon.ypoints[i]++;
+                    }
+                    p.polygon.invalidate();
+                }
+            }
+            else if (!selectedObjects.isEmpty() && toolList.getSelectedItem().equals("Drag Select Vertices"))
+            {
+                for (int i = 0; i < selectedVertices.size(); i++)
+                {
+                    ArrayList<Integer> vertList = selectedVertices.get(i);
+                    Polygon p = selectedObjects.get(i).polygon;
+                    for (int j = 0; j < selectedVertices.get(i).size(); j++)
+                    {
+                        p.ypoints[vertList.get(j)]++;
+                    }
+                    p.invalidate();
+                }
+            }
+            else if (selectedPolygon != null)
+            {
+                //System.out.println("Pressed DOWN");
+                selectedPolygon.polygon.ypoints[selectedVertexIndex]++;
+                //selectedVertex.y = selectedPolygon.ypoints[selectedVertexIndex];
+                selectedPolygon.polygon.invalidate();
+            }
             repaint();
             return;
         }
         if (e.getKeyCode() == KeyEvent.VK_D)
         {
-            //System.out.println("Pressed RIGHT");
-            selectedPolygon.polygon.xpoints[selectedVertexIndex]++;
-            //selectedVertex.x = selectedPolygon.xpoints[selectedVertexIndex];
-            selectedPolygon.polygon.invalidate();
+            
+            if (!selectedObjects.isEmpty() && toolList.getSelectedItem().equals("Drag Select Objects"))
+            {
+                for (MaskedObject p : selectedObjects)
+                {
+                    for (int i = 0; i < p.polygon.npoints; i++)
+                    {
+                        p.polygon.xpoints[i]++;
+                    }
+                    p.polygon.invalidate();
+                }
+            }
+            else if (!selectedObjects.isEmpty() && toolList.getSelectedItem().equals("Drag Select Vertices"))
+            {
+                for (int i = 0; i < selectedVertices.size(); i++)
+                {
+                    ArrayList<Integer> vertList = selectedVertices.get(i);
+                    Polygon p = selectedObjects.get(i).polygon;
+                    for (int j = 0; j < selectedVertices.get(i).size(); j++)
+                    {
+                        p.xpoints[vertList.get(j)]++;
+                    }
+                    p.invalidate();
+                }
+            }
+            else if (selectedPolygon != null)
+            {
+                //System.out.println("Pressed RIGHT");
+                selectedPolygon.polygon.xpoints[selectedVertexIndex]++;
+                //selectedVertex.x = selectedPolygon.xpoints[selectedVertexIndex];
+                selectedPolygon.polygon.invalidate();
+            }
             repaint();
             return;
         }
         if (e.getKeyCode() == KeyEvent.VK_A)
         {
-            //System.out.println("Pressed LEFT");
-            selectedPolygon.polygon.xpoints[selectedVertexIndex]--;
-            //selectedVertex.x = selectedPolygon.xpoints[selectedVertexIndex];
-            selectedPolygon.polygon.invalidate();
-
+            
+            if (!selectedObjects.isEmpty() && toolList.getSelectedItem().equals("Drag Select Objects"))
+            {
+                for (MaskedObject p : selectedObjects)
+                {
+                    for (int i = 0; i < p.polygon.npoints; i++)
+                    {
+                        p.polygon.xpoints[i]--;
+                    }
+                    p.polygon.invalidate();
+                }
+            }
+            else if (!selectedObjects.isEmpty() && toolList.getSelectedItem().equals("Drag Select Vertices"))
+            {
+                for (int i = 0; i < selectedVertices.size(); i++)
+                {
+                    ArrayList<Integer> vertList = selectedVertices.get(i);
+                    Polygon p = selectedObjects.get(i).polygon;
+                    for (int j = 0; j < selectedVertices.get(i).size(); j++)
+                    {
+                        p.xpoints[vertList.get(j)]--;
+                    }
+                    p.invalidate();
+                }
+            }
+            else if (selectedPolygon != null)
+            {
+                //System.out.println("Pressed LEFT");
+                selectedPolygon.polygon.xpoints[selectedVertexIndex]--;
+                //selectedVertex.x = selectedPolygon.xpoints[selectedVertexIndex];
+                selectedPolygon.polygon.invalidate();
+            }
             repaint();
             return;
         }
@@ -5582,3 +5790,7 @@ class MaskedObject
     
 }
 
+class Click {
+    int x;
+    int y;
+}
