@@ -105,6 +105,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
     JCheckBox FillInBlanksBox = new JCheckBox("Grayscale Gaps");
     JCheckBox FirstMappingOnly = new JCheckBox("Only First Mappings");
     JButton SplitVideoFramesButton = new JButton("Split Video Frames");
+    JButton AssembleFramesButton = new JButton("Assemble Video Frames");
     JButton ColorizeFramesButton = new JButton("Colorize Video Frames");
     JButton GenerateTrainingArrangements = new JButton("Generate Training Arrangements");
     //JButton CreateColorizedMovieButton = new JButton("Create Colorized Movie");
@@ -126,12 +127,13 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
     int currentObjectID = 0;
     
     JButton saveVideoFrameButton = new JButton("Save Frame");
+    JButton trackMotionButton = new JButton("Track Motion");
     
     JTextField filenameTextBox = new JTextField(10);
     JLabel extensionLbl = new JLabel(".pmoc");
     JButton saveButton = new JButton("Save");
     JButton openButton = new JButton("Open");
-    JButton recolorPolygonButton = new JButton("Recolor Selected Polygon");
+    JButton recolorPolygonsButton = new JButton("Recolor Selected Polygons");
     
     JButton loadVideoButton = new JButton("Load Video");
     
@@ -2432,6 +2434,63 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         
     }
     
+    public double getFingerprint(BufferedImage bi, int x, int y)
+    {
+        double totalValue = 0;
+        for (int i = -4; i < 4; i++)
+        {
+            for (int j = -4; j < 4; j++)
+            {
+                Pixel pixel = getPixel(x+j,y+i,bi);
+                totalValue += pixel.getAverage();
+            }
+        }
+        return totalValue / 25;
+    }
+    
+    public void trackMotionFromPreviousFrame()
+    {
+        if (selectedPolygon == null)
+        {
+            return;
+        }
+        try {
+            int frameNumber = hsvColorChooser.video_current_value;
+            File prevImageFile = new File("Video Frame PMOCs" + File.separator + "video-frame-" + (frameNumber-1) + ".png");
+            BufferedImage previousImg = ImageIO.read(prevImageFile);
+            for (int i = 0; i < selectedPolygon.polygon.npoints; i++)
+            {
+                int prevX = selectedPolygon.polygon.xpoints[i];
+                int prevY = selectedPolygon.polygon.ypoints[i];
+                double prevFingerprint = getFingerprint(previousImg,prevX,prevY);
+                double mostSimilarFingerprint = 10000;
+                int mostSimilarX = prevX;
+                int mostSimilarY = prevY;
+                for (int j = -10; j < 10; j++)
+                {
+                    for (int k = -10; k < 10; k++)
+                    {
+                        double currFingerprint = getFingerprint(image_pixels,prevX+k,prevY+j);
+                        double difference = Math.abs(prevFingerprint - currFingerprint);
+                        if (difference < mostSimilarFingerprint)
+                        {
+                            mostSimilarFingerprint = difference;
+                            mostSimilarX = prevX+k;
+                            mostSimilarY = prevY+j;
+                        }
+                    }
+                }
+                
+                selectedPolygon.polygon.xpoints[i] = mostSimilarX;
+                selectedPolygon.polygon.ypoints[i] = mostSimilarY; 
+            }
+            selectedPolygon.polygon.invalidate();
+            repaint();
+        } catch (IOException ex) {
+            Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, ex);
+        }
+    }
+    
     public static void main(String[] args) {
         
         
@@ -2645,6 +2704,9 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
             graphic.colorizeVideoFrames("Colorize");
             graphic.assembleVideoFromFrames();
         });*/
+        graphic.AssembleFramesButton.addActionListener((ActionEvent e) -> {
+            graphic.assembleVideoFromFrames();
+        });
         graphic.AsciiFilterButton.addActionListener((ActionEvent e) -> {
             graphic.image_pixels = graphic.toBufferedImage(graphic.selected_image);
             String textImage = graphic.AsciiFilter();
@@ -2680,6 +2742,10 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
             graphic.mosaicType = "Mosaic2";
             graphic.ResetButton.setEnabled(true);
             graphic.repaint();
+        });
+        
+        graphic.trackMotionButton.addActionListener((ActionEvent e) -> {
+            graphic.trackMotionFromPreviousFrame();
         });
         
         graphic.GenerateTrainingArrangements.addActionListener((ActionEvent e) -> {
@@ -2719,7 +2785,8 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         //graphic.buttons.add(graphic.LoadTrainingImageButton);
         graphic.buttons.add(graphic.loadVideoButton);
         graphic.buttons.add(graphic.saveVideoFrameButton);
-        
+        graphic.buttons.add(graphic.trackMotionButton);
+        //graphic.buttons.add(graphic.AssembleFramesButton);
         //graphic.buttons.add(graphic.frameRangeLbl1);
         //graphic.buttons.add(graphic.firstFrameChooser);
         //graphic.buttons.add(graphic.frameRangeLbl2);
@@ -2862,9 +2929,9 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
             }
         });
         
-        graphic.recolorPolygonButton.addActionListener(new ActionListener () {
+        graphic.recolorPolygonsButton.addActionListener(new ActionListener () {
             public void actionPerformed(ActionEvent e) {
-                graphic.recolorSelectedPolygon();
+                graphic.recolorSelectedPolygons();
                 graphic.requestFocus();
             }
         });
@@ -2904,7 +2971,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         });
         */
         graphic.buttons2.add(graphic.colorChooser);
-        graphic.buttons2.add(graphic.recolorPolygonButton);
+        graphic.buttons2.add(graphic.recolorPolygonsButton);
         //graphic.buttons2.add(graphic.PixelateButton);
         //graphic.buttons2.add(graphic.Mosaic1Button);
         //graphic.buttons2.add(graphic.Mosaic2Button);
@@ -4231,6 +4298,10 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                 /*
                     JUST RUN THIS COMMAND DIRECTLY ON THE COMMAND LINE. IT'S EASIER TO SEE THE PROGRESS ANYWAY
                     /usr/local/bin/ffmpeg -r 24 -f image2 -start_number 1 -i /Volumes/PAUL_SODERQ 1/MIDIs/tmp/video-frame-%d.png" -vframes 150019 -c:v libx264 -crf 25 -pix_fmt yuv420p -write_xing 0 "/Volumes/PAUL_SODERQ 1/MIDIs/testCommand_Colorized.mp4"
+                
+                    or more recently this is the command:
+                    /usr/local/bin/ffmpeg -r 24 -f image2 -start_number 101789 -i "Desktop/Video Frame PMOCs/video-frame-%d.png" -vframes 78 -c:v libx264 -crf 25 -pix_fmt yuv420p -write_xing 0 "Desktop/Video Frame PMOCs/testCommand_Colorized.mp4"
+                    
                 */
                     
             };
@@ -5551,9 +5622,13 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
     public void keyReleased(KeyEvent e) {
     }
 
-    private void recolorSelectedPolygon() {
-        
-        colorizePolygon(selectedPolygon.color);
+    private void recolorSelectedPolygons() {
+        for (MaskedObject p : selectedObjects)
+        {
+            selectedPolygon = p;
+            selectedVertexIndex = 0;
+            colorizePolygon(p.color);
+        }
         repaint();
     }
     
