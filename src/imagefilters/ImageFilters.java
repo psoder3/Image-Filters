@@ -128,6 +128,10 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
     
     JButton saveVideoFrameButton = new JButton("Save Frame");
     JButton trackMotionButton = new JButton("Track Motion");
+    JButton findEdgesButton = new JButton("Find Edges");
+    
+    int drawPrecision = 10;
+    int dragCounter = 0;
     
     JTextField filenameTextBox = new JTextField(10);
     JLabel extensionLbl = new JLabel(".pmoc");
@@ -174,7 +178,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
 
     String[] keyStrings = { "0 Neighbors", "1 Neighbor", "2 Neighbors", "3 Neighbors",
         "4 Neighbors", "Optimized Interpolate"};
-    String[] toolStrings = { "Select Polygon Mode", "Vertex Mode", "Drag Select Objects", "Drag Select Vertices"};
+    String[] toolStrings = { "Select Polygon Mode", "Vertex Mode", "Drag Select Objects", "Drag Select Vertices", "Pen Tool"};
     ArrayList<Pixel>[][][][][] optInterpolationDictionary = new ArrayList[256][][][][];
     ArrayList<Pair>[] neighborMeanMap = new ArrayList[256];
 
@@ -2425,7 +2429,10 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
             FileWriter fw = new FileWriter(cids);
             for (MaskedObject p : fakePolygons)
             {
-                fw.append(p.id + " " + p.color.getRed() + " " + p.color.getGreen() + " " + p.color.getBlue() + "\n");
+                if (p.color != null)
+                {
+                    fw.append(p.id + " " + p.color.getRed() + " " + p.color.getGreen() + " " + p.color.getBlue() + "\n");
+                }
             }
             fw.close();
         } catch (IOException ex) {
@@ -2434,22 +2441,270 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         
     }
     
+    public double getIntelligentFingerprintY(BufferedImage bi, int x, int y)
+    {
+        int radius = 3;
+        double numerator = 0;
+        double totalValue = 0;
+        for (int i = -radius; i < radius; i++)
+        {
+            for (int j = -radius; j < radius; j++)
+            {
+                Pixel pixel = getPixel(x+j,y+i,bi);
+                numerator += (pixel.getAverage()*i);
+                totalValue += pixel.getAverage();
+            }
+        }
+        return numerator / totalValue;
+    }
+    
+    
+    public double getIntelligentFingerprintX(BufferedImage bi, int x, int y)
+    {
+        int radius = 3;
+        double numerator = 0;
+        double totalValue = 0;
+        for (int i = -radius; i < radius; i++)
+        {
+            for (int j = -radius; j < radius; j++)
+            {
+                Pixel pixel = getPixel(x+j,y+i,bi);
+                numerator += (pixel.getAverage()*j);
+                totalValue += pixel.getAverage();
+            }
+        }
+        return numerator / totalValue;
+    }
+    
     public double getFingerprint(BufferedImage bi, int x, int y)
     {
+        int radius = 4;
         double totalValue = 0;
-        for (int i = -4; i < 4; i++)
+        for (int i = -radius; i < radius; i++)
         {
-            for (int j = -4; j < 4; j++)
+            for (int j = -radius; j < radius; j++)
             {
                 Pixel pixel = getPixel(x+j,y+i,bi);
                 totalValue += pixel.getAverage();
             }
         }
-        return totalValue / 25;
+        return totalValue / ((radius*2)+1);
+    }
+    
+    public double getContrastFromSides(BufferedImage bi, int x, int y, int polygonIndex, int vertexIndex)
+    {
+        MaskedObject poly = polygons.get(polygonIndex);
+        int prevPointIndex = ((vertexIndex+poly.polygon.npoints)-1)%poly.polygon.npoints;
+        int nextPointIndex = (vertexIndex+1)%poly.polygon.npoints;
+        int prevX = poly.polygon.xpoints[prevPointIndex];
+        int prevY = poly.polygon.ypoints[prevPointIndex];
+        int nextX = poly.polygon.xpoints[nextPointIndex];
+        int nextY = poly.polygon.ypoints[nextPointIndex];
+        double slopeNumerator = (prevY - nextY + 0.0);
+        double slopeDenominator = (prevX - nextX + 0.0);
+        double contrast = 0;
+        double slope;
+        if (slopeDenominator == 0)
+        {
+            slope = 10000000;
+        }
+        else
+        {
+            slope = slopeNumerator/slopeDenominator;
+        }
+        if (slope < .414 && slope > -.414)
+        {
+            // slope is near 0
+            double pixel1 = getPixel(x,y-1,bi).getAverage();
+            double pixel2 = getPixel(x,y-2,bi).getAverage();
+            double pixel3 = getPixel(x,y-3,bi).getAverage();
+
+            double pixel4 = getPixel(x,y+1,bi).getAverage();
+            double pixel5 = getPixel(x,y+2,bi).getAverage();
+            double pixel6 = getPixel(x,y+3,bi).getAverage();
+            
+            double topLineAverage = (pixel1 + pixel2 + pixel3)/3.0;
+            double bottomLineAverage = (pixel4 + pixel5 + pixel6)/3.0;
+            contrast = Math.abs(topLineAverage-bottomLineAverage);
+        }
+        else if (slope > .414 && slope < 1.586)
+        {
+            // slope is near 1
+            double pixel1 = getPixel(x-1,y-1,bi).getAverage();
+            double pixel2 = getPixel(x-2,y-2,bi).getAverage();
+            double pixel3 = getPixel(x-3,y-3,bi).getAverage();
+
+            double pixel4 = getPixel(x+1,y+1,bi).getAverage();
+            double pixel5 = getPixel(x+2,y+2,bi).getAverage();
+            double pixel6 = getPixel(x+3,y+3,bi).getAverage();
+            
+            double topLineAverage = (pixel1 + pixel2 + pixel3)/3.0;
+            double bottomLineAverage = (pixel4 + pixel5 + pixel6)/3.0;
+            contrast = Math.abs(topLineAverage-bottomLineAverage);
+        }
+        else if (slope > 1.586 || slope < -1.586)
+        {
+            // slope is near infinity
+            double pixel1 = getPixel(x-1,y,bi).getAverage();
+            double pixel2 = getPixel(x-2,y,bi).getAverage();
+            double pixel3 = getPixel(x-3,y,bi).getAverage();
+
+            double pixel4 = getPixel(x+1,y,bi).getAverage();
+            double pixel5 = getPixel(x+2,y,bi).getAverage();
+            double pixel6 = getPixel(x+3,y,bi).getAverage();
+            
+            double leftLineAverage = (pixel1 + pixel2 + pixel3)/3.0;
+            double rightLineAverage = (pixel4 + pixel5 + pixel6)/3.0;
+            contrast = Math.abs(leftLineAverage-rightLineAverage);
+        }
+        else if (slope > -1.586 && slope < -.414)
+        {
+            // slope is near -1
+            double pixel1 = getPixel(x+1,y-1,bi).getAverage();
+            double pixel2 = getPixel(x+2,y-2,bi).getAverage();
+            double pixel3 = getPixel(x+3,y-3,bi).getAverage();
+
+            double pixel4 = getPixel(x-1,y+1,bi).getAverage();
+            double pixel5 = getPixel(x-2,y+2,bi).getAverage();
+            double pixel6 = getPixel(x-3,y+3,bi).getAverage();
+            
+            double topLineAverage = (pixel1 + pixel2 + pixel3)/3.0;
+            double bottomLineAverage = (pixel4 + pixel5 + pixel6)/3.0;
+            contrast = Math.abs(topLineAverage-bottomLineAverage);
+        }
+        if (Math.abs(contrast) < 0.01)
+        {
+            contrast = 0.01;
+        }
+        return contrast;
+    }
+    
+    private Click findEdgeForVertex(int prevX, int prevY, int searchRadius, int polygonIndex, int vertexIndex)
+    {
+        double greatestContrast = getContrastFromSides(image_pixels,prevX,prevY,polygonIndex,vertexIndex);
+        int bestX = prevX;
+        int bestY = prevY;
+        for (int j = -searchRadius; j < searchRadius; j++)
+        {
+            for (int k = -searchRadius; k < searchRadius; k++)
+            {
+                double contrastOnSide = getContrastFromSides(image_pixels,prevX+k,prevY+j,polygonIndex,vertexIndex);
+
+                //double difference = Math.abs(prevFingerprint - currFingerprint);
+                if (contrastOnSide > greatestContrast)
+                {
+                    greatestContrast = contrastOnSide;
+                    bestX = prevX+k;
+                    bestY = prevY+j;
+                }
+            }
+        }
+        Click c = new Click();
+        c.x = bestX;
+        c.y = bestY;
+        return c;
+    }
+    
+    public void findEdges()
+    {
+        int searchRadius = 10;
+        searchRadius /= scale;
+        if (selectedVertices.size() > 0)
+        {
+            for (int i = 0; i < selectedVertices.size(); i++)
+            {
+                ArrayList<Integer> vertList = selectedVertices.get(i);
+                MaskedObject p = selectedObjects.get(i);
+                for (int j = 0; j < selectedVertices.get(i).size(); j++)
+                {
+                    int vertIndex = vertList.get(j);
+                    int prevX = p.polygon.xpoints[vertIndex];
+                    int prevY = p.polygon.ypoints[vertIndex];
+                    int polygonIndex = getPolygonIndex(p);
+                    Click c = findEdgeForVertex(prevX,prevY,searchRadius,polygonIndex,vertIndex);
+
+                    //int tempX = selectedPolygon.polygon.xpoints[i];
+                    //int tempY = selectedPolygon.polygon.ypoints[i];
+                    
+                    p.polygon.xpoints[vertIndex] = c.x;
+                    p.polygon.ypoints[vertIndex] = c.y; 
+                    
+                    /*for (MaskedObject mo : polygons)
+                    {
+                        boolean affected = false;
+                        for (int k = 0; k < mo.polygon.npoints; k++)
+                        {
+                            if (mo.polygon.xpoints[k] == tempX && mo.polygon.ypoints[k] == tempY)
+                            {
+                                mo.polygon.xpoints[k] = c.x;
+                                mo.polygon.ypoints[k] = c.y;
+                                affected = true;
+                            }
+                        }
+                        if (affected)
+                        {
+                            mo.polygon.invalidate();
+                        }
+                    }*/
+                }
+                p.polygon.invalidate();
+            }
+            
+            repaint();
+        }
+        else if (selectedPolygon != null)
+        {
+            for (int i = 0; i < selectedPolygon.polygon.npoints; i++)
+            {
+                int prevX = selectedPolygon.polygon.xpoints[i];
+                int prevY = selectedPolygon.polygon.ypoints[i];
+                int selectedPolygonIndex = getPolygonIndex(selectedPolygon);
+                Click c = findEdgeForVertex(prevX,prevY,searchRadius,selectedPolygonIndex,i);
+                
+                int tempX = selectedPolygon.polygon.xpoints[i];
+                int tempY = selectedPolygon.polygon.ypoints[i];
+                selectedPolygon.polygon.xpoints[i] = c.x;
+                selectedPolygon.polygon.ypoints[i] = c.y; 
+                for (MaskedObject mo : polygons)
+                {
+                    boolean affected = false;
+                    for (int k = 0; k < mo.polygon.npoints; k++)
+                    {
+                        if (mo.polygon.xpoints[k] == tempX && mo.polygon.ypoints[k] == tempY)
+                        {
+                            mo.polygon.xpoints[k] = c.x;
+                            mo.polygon.ypoints[k] = c.y;
+                            affected = true;
+                        }
+                    }
+                    if (affected)
+                    {
+                        mo.polygon.invalidate();
+                    }
+                }
+            }
+            selectedPolygon.polygon.invalidate();
+            repaint();
+        }
+    }
+    
+    private int getPolygonIndex(MaskedObject p)
+    {
+        for (int i = 0; i < polygons.size(); i++)
+        {
+            if (polygons.get(i).polygon == p.polygon)
+            {
+                return i;
+            }
+        }
+        return -1;
     }
     
     public void trackMotionFromPreviousFrame()
     {
+        int searchRadius = 16;
+        searchRadius /= scale;
+        int tweakableScalar = 0;
         if (selectedPolygon == null)
         {
             return;
@@ -2457,32 +2712,67 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         try {
             int frameNumber = hsvColorChooser.video_current_value;
             File prevImageFile = new File("Video Frame PMOCs" + File.separator + "video-frame-" + (frameNumber-1) + ".png");
+            File prevPMOCFile = new File("Video Frame PMOCs" + File.separator + "video-frame-" + (frameNumber-1) + ".pmoc");
+            ArrayList<MaskedObject> prevFrameObjects = getDataFromPMOC(prevPMOCFile);
+            int prevFramePolygonIndex = getPolygonIndex(selectedPolygon);
+            MaskedObject prevPolygon = prevFrameObjects.get(prevFramePolygonIndex);
             BufferedImage previousImg = ImageIO.read(prevImageFile);
-            for (int i = 0; i < selectedPolygon.polygon.npoints; i++)
+            for (int i = 0; i < prevPolygon.polygon.npoints; i++)
             {
-                int prevX = selectedPolygon.polygon.xpoints[i];
-                int prevY = selectedPolygon.polygon.ypoints[i];
-                double prevFingerprint = getFingerprint(previousImg,prevX,prevY);
-                double mostSimilarFingerprint = 10000;
+                int vertIndex = i;
+                int prevX = prevPolygon.polygon.xpoints[vertIndex];
+                int prevY = prevPolygon.polygon.ypoints[vertIndex];
+                double prevFingerprintX = getIntelligentFingerprintX(previousImg,prevX,prevY);
+                double prevFingerprintY = getIntelligentFingerprintY(previousImg,prevX,prevY);
+                double currX = getIntelligentFingerprintX(image_pixels,prevX,prevY);
+                double currY = getIntelligentFingerprintY(image_pixels,prevX,prevY);
+                double mostSimilarFingerprint = Math.sqrt(Math.pow(currX - prevFingerprintX,2)+Math.pow(currY - prevFingerprintY,2));
+                int selectedPolygonIndex = getPolygonIndex(selectedPolygon);
+                double contrastOnSide = getContrastFromSides(image_pixels,prevX,prevY,selectedPolygonIndex,vertIndex);
+                mostSimilarFingerprint += (tweakableScalar)*(1.0/contrastOnSide);
                 int mostSimilarX = prevX;
                 int mostSimilarY = prevY;
-                for (int j = -10; j < 10; j++)
+                for (int j = -searchRadius; j < searchRadius; j++)
                 {
-                    for (int k = -10; k < 10; k++)
+                    for (int k = -searchRadius; k < searchRadius; k++)
                     {
-                        double currFingerprint = getFingerprint(image_pixels,prevX+k,prevY+j);
-                        double difference = Math.abs(prevFingerprint - currFingerprint);
-                        if (difference < mostSimilarFingerprint)
+                        double currFingerprintX = getIntelligentFingerprintX(image_pixels,prevX+k,prevY+j);
+                        double currFingerprintY = getIntelligentFingerprintY(image_pixels,prevX+k,prevY+j);
+                        double distance = Math.sqrt(Math.pow(currFingerprintX - prevFingerprintX,2)+Math.pow(currFingerprintY - prevFingerprintY,2));
+                        contrastOnSide = getContrastFromSides(image_pixels,prevX+k,prevY+j,selectedPolygonIndex,vertIndex);
+                        distance += (tweakableScalar)*(1.0/contrastOnSide);
+                        //double difference = Math.abs(prevFingerprint - currFingerprint);
+                        if (distance < mostSimilarFingerprint)
                         {
-                            mostSimilarFingerprint = difference;
+                            mostSimilarFingerprint = distance;
                             mostSimilarX = prevX+k;
                             mostSimilarY = prevY+j;
                         }
                     }
                 }
+                int tempX = selectedPolygon.polygon.xpoints[i];
+                int tempY = selectedPolygon.polygon.ypoints[i];
                 
                 selectedPolygon.polygon.xpoints[i] = mostSimilarX;
                 selectedPolygon.polygon.ypoints[i] = mostSimilarY; 
+                
+                for (MaskedObject p : polygons)
+                {
+                    boolean affected = false;
+                    for (int j = 0; j < p.polygon.npoints; j++)
+                    {
+                        if (p.polygon.xpoints[j] == tempX && p.polygon.ypoints[j] == tempY)
+                        {
+                            p.polygon.xpoints[j] = mostSimilarX;
+                            p.polygon.ypoints[j] = mostSimilarY;
+                            affected = true;
+                        }
+                    }
+                    if (affected)
+                    {
+                        p.polygon.invalidate();
+                    }
+                }
             }
             selectedPolygon.polygon.invalidate();
             repaint();
@@ -2748,6 +3038,10 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
             graphic.trackMotionFromPreviousFrame();
         });
         
+        graphic.findEdgesButton.addActionListener((ActionEvent e) -> {
+            graphic.findEdges();
+        });
+        
         graphic.GenerateTrainingArrangements.addActionListener((ActionEvent e) -> {
             graphic.generateTrainingArrangements();
         });
@@ -2786,6 +3080,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         graphic.buttons.add(graphic.loadVideoButton);
         graphic.buttons.add(graphic.saveVideoFrameButton);
         graphic.buttons.add(graphic.trackMotionButton);
+        graphic.buttons.add(graphic.findEdgesButton);
         //graphic.buttons.add(graphic.AssembleFramesButton);
         //graphic.buttons.add(graphic.frameRangeLbl1);
         //graphic.buttons.add(graphic.firstFrameChooser);
@@ -3721,41 +4016,49 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         }
     }
     
+    private ArrayList<MaskedObject> getDataFromPMOC(File pmoc) throws FileNotFoundException
+    {
+        ArrayList<MaskedObject> tempPolygons = new ArrayList();
+
+        Scanner reader = new Scanner(pmoc);
+        double scale = reader.nextDouble();
+        int numPolygons = reader.nextInt();
+
+        for (int i = 0; i < numPolygons; i++)
+        {
+            MaskedObject poly = new MaskedObject();
+            String next = reader.next();
+            int numVertices;
+            if (next.equals("rgb"))
+            {
+                int r = reader.nextInt();
+                int g = reader.nextInt();
+                int b = reader.nextInt();
+                poly.color = new Color(r,g,b);
+                numVertices = reader.nextInt();
+            }
+
+            else
+            {
+                numVertices = Integer.parseInt(next);
+            }
+            for (int j = 0; j < numVertices; j++)
+            {
+                int xcoord = reader.nextInt();
+                int ycoord = reader.nextInt();
+                poly.polygon.addPoint(xcoord, ycoord);
+            }
+            tempPolygons.add(poly);
+        }
+        return tempPolygons;
+    }
+    
     public void openVideoPMOC(String filepath, File pmoc)
     {
         polygons.clear();
         try {
-            Scanner reader = new Scanner(pmoc);
-            double scale = reader.nextDouble();
-            int numPolygons = reader.nextInt();
-            polygons = new ArrayList();
             
-            for (int i = 0; i < numPolygons; i++)
-            {
-                MaskedObject poly = new MaskedObject();
-                String next = reader.next();
-                int numVertices;
-                
-                if (next.equals("ID:"))
-                {
-                    int oid = reader.nextInt();
-                    poly.id = oid;
-                    poly.color = getColorById(oid);
-                    numVertices = reader.nextInt();
-                }
-                else
-                {
-                    numVertices = Integer.parseInt(next);
-                }
-                for (int j = 0; j < numVertices; j++)
-                {
-                    int xcoord = reader.nextInt();
-                    int ycoord = reader.nextInt();
-                    poly.polygon.addPoint(xcoord, ycoord);
-                }
-                polygons.add(poly);
-            }
-            
+            polygons = getDataFromPMOC(pmoc);
             openCidsFile();
             
             selected_file = new File(filepath + ".png");
@@ -3896,7 +4199,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
     {
         try {
             String name = selected_pmoc_file.getName();
-            selected_file = new File(name.substring(0,name.length()-5) + ".png");
+            selected_file = new File("PMOCs" + File.separator + name.substring(0,name.length()-5) + ".png");
             selected_image = ImageIO.read(selected_file);
             image_pixels = toBufferedImage(selected_image);
             repaint();
@@ -3908,64 +4211,8 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
     public void loadPMOC(File selected_pmoc_file)
     {
         try {
-            Scanner reader = new Scanner(selected_pmoc_file);
-            double scale = reader.nextDouble();
-            int numPolygons = reader.nextInt();
-            polygons = new ArrayList();
-            
-            for (int i = 0; i < numPolygons; i++)
-            {
-                MaskedObject poly = new MaskedObject();
-                String next = reader.next();
-                int numVertices;
-                if (next.equals("rgb"))
-                {
-                    int r = reader.nextInt();
-                    int g = reader.nextInt();
-                    int b = reader.nextInt();
-                    poly.color = new Color(r,g,b);
-                    numVertices = reader.nextInt();
-                }
-                /* FOR NOW JUST DON'T OPEN A VIDEO FRAME PMOC
-                
-                else if (next.equals("ID:"))
-                {
-                if (graphic.idList == null)
-                {
-                graphic.idList = new ArrayList();
-                File cidsFile = new File("ids.cids");
-                Scanner file_in = new Scanner(cidsFile);
-                while (file_in.hasNextLine())
-                {
-                int id = file_in.nextInt();
-                int r = file_in.nextInt();
-                int g = file_in.nextInt();
-                int b = file_in.nextInt();
-                ColorID cid = new ColorID();
-                cid.color = new Color(r,g,b);
-                cid.id = id;
-                graphic.idList.add(cid);
-                }
-                }
-                int oid = reader.nextInt();
-                poly.color = graphic.getColorById(oid);
-                numVertices = reader.nextInt();
-                }
-                */
-                else
-                {
-                    numVertices = Integer.parseInt(next);
-                }
-                for (int j = 0; j < numVertices; j++)
-                {
-                    int xcoord = reader.nextInt();
-                    int ycoord = reader.nextInt();
-                    poly.polygon.addPoint(xcoord, ycoord);
-                }
-                polygons.add(poly);
-            }
-            
-            
+            polygons = getDataFromPMOC(selected_pmoc_file);
+
             repaint();
         } catch (FileNotFoundException ex) {
             Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, ex);
@@ -5017,7 +5264,8 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
     public void mousePressed(MouseEvent e) {
         if (!toolList.getSelectedItem().equals("Vertex Mode") 
                 && !toolList.getSelectedItem().equals("Drag Select Objects")
-                && !toolList.getSelectedItem().equals("Drag Select Vertices"))
+                && !toolList.getSelectedItem().equals("Drag Select Vertices")
+                && !toolList.getSelectedItem().equals("Pen Tool"))
         {
             return;
         }
@@ -5028,6 +5276,16 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
             selectedObjects.clear();
             selectedVertices.clear();
             
+        }
+        else if (toolList.getSelectedItem().equals("Pen Tool"))
+        {
+            dragCounter = 0;
+            Click start = convertClick(e);
+            selectedPolygon = new MaskedObject();
+            selectedPolygon.polygon.addPoint(start.x, start.y);
+            selectedVertexIndex = 0;
+            polygons.add(selectedPolygon);
+            repaint();
         }
         else
         {
@@ -5170,8 +5428,16 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
     @Override
     public void mouseDragged(MouseEvent e) {
         Click click = convertClick(e);
-        
-        if (currentlyDragging)
+        if (toolList.getSelectedItem().equals("Pen Tool"))
+        {
+            if (dragCounter % drawPrecision == 0)
+            {
+                selectedPolygon.polygon.addPoint(click.x, click.y);
+            }
+            dragCounter++;
+            repaint();
+        }
+        else if (currentlyDragging)
         {     
             validateDraggingAdjacentObject(click.x,click.y);
             if (adjacentPolygonVertex != -1)
