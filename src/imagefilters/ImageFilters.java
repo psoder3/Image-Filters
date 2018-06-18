@@ -42,6 +42,7 @@ import imagefilters.ColorChooserButton.ColorChangedListener;
 import java.awt.BasicStroke;
 import java.awt.Polygon;
 import java.awt.Stroke;
+import java.awt.Toolkit;
 import java.awt.color.ColorSpace;
 import java.awt.color.ICC_ColorSpace;
 import java.awt.color.ICC_Profile;
@@ -50,15 +51,19 @@ import java.awt.event.KeyListener;
 import java.awt.event.MouseMotionListener;
 import java.awt.geom.AffineTransform;
 import java.awt.image.ColorConvertOp;
+import java.beans.PropertyChangeListener;
 import java.io.FileNotFoundException;
 import java.util.Comparator;
 import java.util.HashSet;
+import javax.swing.AbstractAction;
+import javax.swing.Action;
 
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTextField;
+import javax.swing.KeyStroke;
 import javax.swing.SpinnerNumberModel;
 import javax.swing.Timer;
 import org.bytedeco.javacpp.opencv_core.IplImage;
@@ -129,7 +134,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
     JButton saveVideoFrameButton = new JButton("Save Frame");
     JButton trackMotionButton = new JButton("Track Motion");
     JButton findEdgesButton = new JButton("Find Edges");
-    
+    JButton colorLayersButton = new JButton("Color By Layers");
     int drawPrecision = 10;
     int dragCounter = 0;
     
@@ -452,270 +457,276 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         return false;
     }
     
+    public void colorPixel(int column, int row, Color color_picked)
+    {
+        float[] hsbInput = new float[3];
+        Color.RGBtoHSB(color_picked.getRed(),color_picked.getGreen(), color_picked.getBlue(), hsbInput);
+        float inputHue = hsbInput[0];
+        float inputSaturation = hsbInput[1];
+        Pixel pixel = getPixel(column,row,image_pixels);
+        int pixelR = pixel.getRedValue();
+        int pixelG = pixel.getGreenValue();
+        int pixelB = pixel.getBlueValue();
+        int average = (int)(((pixelR+pixelG+pixelB)/3.0));
+        pixelR = average;
+        pixelG = average;
+        pixelB = average;
+        float[] hsb = new float[3];
+        Color.RGBtoHSB(pixelR,pixelG,pixelB,hsb);
+        float h = hsb[0];
+        float s = hsb[1];
+        float b = hsb[2];
+        //System.out.print(hsv[0] + " ");
+        b *= 1.245;
+        if (b > 1) b = 1;
+        if (b < 0) b = 0;
+        Color newColor = Color.getHSBColor(inputHue,inputSaturation,b);
+        //Color newColor = new Color(rgb);
+        double newAverage = (newColor.getRed() + newColor.getGreen() + newColor.getBlue()) / 3.0;
+        //System.out.println("old average: " + average);
+        //System.out.println("new average: " + newAverage);
+        //System.out.print(255-average_value + ",");
+        int difference = average - (int)newAverage;
+
+        int newRed = newColor.getRed()+difference;
+        int newGreen = newColor.getGreen()+difference;
+        int newBlue = newColor.getBlue()+difference;
+
+        
+        // THIS NEXT PART ENSURES THE ORIGINAL 
+        // GRAYSCALE AVERAGE VALUE IS PRESERVED
+        
+        
+        // Red is above
+        if (newRed > 255)
+        {
+            int surplusRed = newRed - 255;
+            newRed = 255;
+
+            newGreen += surplusRed/2;
+            newBlue += surplusRed/2;
+            if (newGreen > 255)
+            {
+                int surplusGreen = newGreen - 255;
+                newGreen = 255;
+                newBlue += surplusGreen;
+            }
+            else if (newBlue > 255)
+            {
+                int surplusBlue = newBlue - 255;
+                newBlue = 255;
+                newGreen += surplusBlue;
+            }
+
+        } 
+        // Red is below
+        else if (newRed < 0)
+        {
+            int debtRed = 0-newRed;
+            newRed = 0;
+
+            newGreen -= debtRed/2;
+            newBlue -= debtRed/2;
+            if (newGreen < 0)
+            {
+                int debtGreen = 0 - newGreen;
+                newGreen = 0;
+                newBlue -= debtGreen;
+            }
+            else if (newBlue < 0)
+            {
+                int debtBlue = 0 - newBlue;
+                newBlue = 0;
+                newGreen -= debtBlue;
+            }
+
+        }
+
+        // Green is above
+        else if (newGreen > 255)
+        {
+            int surplusGreen = newGreen - 255;
+            newGreen = 255;
+
+            newRed += surplusGreen/2;
+            newBlue += surplusGreen/2;
+            if (newRed > 255)
+            {
+                int surplusRed = newRed - 255;
+                newRed = 255;
+                newBlue += surplusRed;
+            }
+            else if (newBlue > 255)
+            {
+                int surplusBlue = newBlue - 255;
+                newBlue = 255;
+                newRed += surplusBlue;
+            }
+
+        }
+        // Green is below
+        else if (newGreen < 0)
+        {
+            int debtGreen = 0-newGreen;
+            newGreen = 0;
+
+            newRed -= debtGreen/2;
+            newBlue -= debtGreen/2;
+            if (newRed < 0)
+            {
+                int debtRed = 0 - newRed;
+                newRed = 0;
+                newBlue -= debtRed;
+            }
+            else if (newBlue < 0)
+            {
+                int debtBlue = 0 - newBlue;
+                newBlue = 0;
+                newRed -= debtBlue;
+            }
+
+        }
+
+
+        // Blue is above
+        else if (newBlue > 255)
+        {
+            int surplusBlue = newBlue - 255;
+            newBlue = 255;
+
+            newGreen += surplusBlue/2;
+            newRed += surplusBlue/2;
+            if (newGreen > 255)
+            {
+                int surplusGreen = newGreen - 255;
+                newGreen = 255;
+                newRed += surplusGreen;
+            }
+            else if (newRed > 255)
+            {
+                int surplusRed = newRed - 255;
+                newRed = 255;
+                newGreen += surplusRed;
+            }
+
+        }
+        // Blue is below
+        else if (newBlue < 0)
+        {
+            int debtBlue = 0-newBlue;
+            newBlue = 0;
+
+            newGreen -= debtBlue/2;
+            newRed -= debtBlue/2;
+            if (newGreen < 0)
+            {
+                int debtGreen = 0 - newGreen;
+                newGreen = 0;
+                newRed -= debtGreen;
+            }
+            else if (newRed < 0)
+            {
+                int debtRed = 0 - newRed;
+                newRed = 0;
+                newGreen -= debtRed;
+            }
+
+        }
+
+        if (newRed > 258 || newRed < -3 || newGreen > 258 || newGreen < -3 || newBlue > 258 || newBlue < -3)
+        {
+            System.out.println("Something very not okay");
+        }
+        else if (newRed > 255)
+        {
+            newRed = 255;
+        }
+        else if (newRed < 0)
+        {
+            newRed = 0;
+        }
+        else if (newGreen > 255)
+        {
+            newGreen = 255;
+        }
+        else if (newGreen < 0)
+        {
+            newGreen = 0;
+        }
+        else if (newBlue > 255)
+        {
+            newBlue = 255;
+        }
+        else if (newBlue < 0)
+        {
+            newBlue = 0;
+        }
+        newAverage = (newRed + newGreen + newBlue)/3;
+        if ((int)newAverage > average)
+        {
+            //System.out.println("new greater than old");
+            if (newRed > 0) newRed--;
+            if (newGreen > 0) newGreen--;
+            if (newBlue > 0) newBlue--;
+
+        }
+        else if ((int)newAverage < average)
+        {
+            //System.out.println("new less than old" + (newAverage - average));
+            if (newRed < 255) newRed++;
+            if (newGreen < 255) newGreen++;
+            if (newBlue < 255) newBlue++;
+
+        }
+
+        pixel.setRGB(newRed, newGreen, newBlue);
+
+    }
     
     public void colorizePolygon(Color color_picked)
     {
-        if (color_picked == null)
+        if (color_picked == null || selectedPolygon == null)
         {
             return;
         }
-        int counterOff = 0;
         for (int row = 0; row < image_pixels.getHeight(); row++)
         {
             for (int column = 0; column < image_pixels.getWidth(); column++)
             {
-                if (selectedPolygon == null)
-                {
-                    continue;
-                }
+                
                 if (!selectedPolygon.polygon.contains(column,row))
                 {
                     continue;
                 }
-                if (pointIsInsideContainedPolygon(column,row))
-                {
-                    continue;
-                }
-                float[] hsbInput = new float[3];
-                Color.RGBtoHSB(color_picked.getRed(),color_picked.getGreen(), color_picked.getBlue(), hsbInput);
-                float inputHue = hsbInput[0];
-                float inputSaturation = hsbInput[1];
-                Pixel pixel = getPixel(column,row,image_pixels);
-                int pixelR = pixel.getRedValue();
-                int pixelG = pixel.getGreenValue();
-                int pixelB = pixel.getBlueValue();
-                int average = (int)(((pixelR+pixelG+pixelB)/3.0));
-                pixelR = average;
-                pixelG = average;
-                pixelB = average;
-                float[] hsb = new float[3];
-                Color.RGBtoHSB(pixelR,pixelG,pixelB,hsb);
-                float h = hsb[0];
-                float s = hsb[1];
-                float b = hsb[2];
-                //System.out.print(hsv[0] + " ");
-                b *= 1.245;
-                if (b > 1) b = 1;
-                if (b < 0) b = 0;
-                Color newColor = Color.getHSBColor(inputHue,inputSaturation,b);
-                //Color newColor = new Color(rgb);
-                double newAverage = (newColor.getRed() + newColor.getGreen() + newColor.getBlue()) / 3.0;
-                //System.out.println("old average: " + average);
-                //System.out.println("new average: " + newAverage);
-                //System.out.print(255-average_value + ",");
-                int difference = average - (int)newAverage;
+                //if (pointIsInsideContainedPolygon(column,row))
+                //{
+                    //continue;
+                //}
+                ArrayList<MaskedObject> containingObjects = getAllContainingObjects(column, row);
                 
-                int newRed = newColor.getRed()+difference;
-                int newGreen = newColor.getGreen()+difference;
-                int newBlue = newColor.getBlue()+difference;
-                
-                if (row > 200)
+                if (containingObjects.size() == 1)
                 {
-                    //System.out.println("Row big");
+                    colorPixel(column,row,color_picked);
                 }
-
-                // Red is above
-                if (newRed > 255)
+                else
                 {
-                    int surplusRed = newRed - 255;
-                    newRed = 255;
-
-                    newGreen += surplusRed/2;
-                    newBlue += surplusRed/2;
-                    if (newGreen > 255)
+                    boolean topLayer = true;
+                    double selectedDepth = selectedPolygon.depth;
+                    for (MaskedObject p : containingObjects)
                     {
-                        int surplusGreen = newGreen - 255;
-                        newGreen = 255;
-                        newBlue += surplusGreen;
+                        if (p.depth > selectedDepth)
+                        {
+                            topLayer = false;
+                            break;
+                        }
                     }
-                    else if (newBlue > 255)
+                    if (topLayer)
                     {
-                        int surplusBlue = newBlue - 255;
-                        newBlue = 255;
-                        newGreen += surplusBlue;
+                        colorPixel(column,row,color_picked);
                     }
-
-                } 
-                // Red is below
-                else if (newRed < 0)
-                {
-                    int debtRed = 0-newRed;
-                    newRed = 0;
-
-                    newGreen -= debtRed/2;
-                    newBlue -= debtRed/2;
-                    if (newGreen < 0)
-                    {
-                        int debtGreen = 0 - newGreen;
-                        newGreen = 0;
-                        newBlue -= debtGreen;
-                    }
-                    else if (newBlue < 0)
-                    {
-                        int debtBlue = 0 - newBlue;
-                        newBlue = 0;
-                        newGreen -= debtBlue;
-                    }
-
                 }
-
-                // Green is above
-                else if (newGreen > 255)
-                {
-                    int surplusGreen = newGreen - 255;
-                    newGreen = 255;
-
-                    newRed += surplusGreen/2;
-                    newBlue += surplusGreen/2;
-                    if (newRed > 255)
-                    {
-                        int surplusRed = newRed - 255;
-                        newRed = 255;
-                        newBlue += surplusRed;
-                    }
-                    else if (newBlue > 255)
-                    {
-                        int surplusBlue = newBlue - 255;
-                        newBlue = 255;
-                        newRed += surplusBlue;
-                    }
-
-                }
-                // Green is below
-                else if (newGreen < 0)
-                {
-                    int debtGreen = 0-newGreen;
-                    newGreen = 0;
-
-                    newRed -= debtGreen/2;
-                    newBlue -= debtGreen/2;
-                    if (newRed < 0)
-                    {
-                        int debtRed = 0 - newRed;
-                        newRed = 0;
-                        newBlue -= debtRed;
-                    }
-                    else if (newBlue < 0)
-                    {
-                        int debtBlue = 0 - newBlue;
-                        newBlue = 0;
-                        newRed -= debtBlue;
-                    }
-
-                }
-
-
-                // Blue is above
-                else if (newBlue > 255)
-                {
-                    int surplusBlue = newBlue - 255;
-                    newBlue = 255;
-
-                    newGreen += surplusBlue/2;
-                    newRed += surplusBlue/2;
-                    if (newGreen > 255)
-                    {
-                        int surplusGreen = newGreen - 255;
-                        newGreen = 255;
-                        newRed += surplusGreen;
-                    }
-                    else if (newRed > 255)
-                    {
-                        int surplusRed = newRed - 255;
-                        newRed = 255;
-                        newGreen += surplusRed;
-                    }
-
-                }
-                // Blue is below
-                else if (newBlue < 0)
-                {
-                    int debtBlue = 0-newBlue;
-                    newBlue = 0;
-
-                    newGreen -= debtBlue/2;
-                    newRed -= debtBlue/2;
-                    if (newGreen < 0)
-                    {
-                        int debtGreen = 0 - newGreen;
-                        newGreen = 0;
-                        newRed -= debtGreen;
-                    }
-                    else if (newRed < 0)
-                    {
-                        int debtRed = 0 - newRed;
-                        newRed = 0;
-                        newGreen -= debtRed;
-                    }
-
-                }
-
-                if (newRed > 258 || newRed < -3 || newGreen > 258 || newGreen < -3 || newBlue > 258 || newBlue < -3)
-                {
-                    System.out.println("Something very not okay");
-                }
-                else if (newRed > 255)
-                {
-                    newRed = 255;
-                }
-                else if (newRed < 0)
-                {
-                    newRed = 0;
-                }
-                else if (newGreen > 255)
-                {
-                    newGreen = 255;
-                }
-                else if (newGreen < 0)
-                {
-                    newGreen = 0;
-                }
-                else if (newBlue > 255)
-                {
-                    newBlue = 255;
-                }
-                else if (newBlue < 0)
-                {
-                    newBlue = 0;
-                }
-                newAverage = (newRed + newGreen + newBlue)/3;
-                if ((int)newAverage > average)
-                {
-                    //System.out.println("new greater than old");
-                    if (newRed > 0) newRed--;
-                    if (newGreen > 0) newGreen--;
-                    if (newBlue > 0) newBlue--;
-                    
-                }
-                else if ((int)newAverage < average)
-                {
-                    //System.out.println("new less than old" + (newAverage - average));
-                    if (newRed < 255) newRed++;
-                    if (newGreen < 255) newGreen++;
-                    if (newBlue < 255) newBlue++;
-                                       
-                }
-                newAverage = (newRed + newGreen + newBlue)/3;
-                if ((int)newAverage > average)
-                {
-                    //System.out.println("new greater than old");
-                    
-                    counterOff++;
-                }
-                else if ((int)newAverage < average)
-                {
-                    //System.out.println("new less than old" + (newAverage - average));
-                    
-                    counterOff++;                    
-                }
-                pixel.setRGB(newRed, newGreen, newBlue);
-
-                
-                
             }
-            //System.out.println();
         }
-        System.out.println(counterOff);
     }
     
     public int constrain(int value)
@@ -729,6 +740,50 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
             value = 0;
         }
         return value;
+    }
+    
+    // the following function takes way too long if there are many objects with many vertices
+    public void colorizeImageByLayers()
+    {
+        for (int row = 0; row < image_pixels.getHeight(); row++)
+        {
+            for (int column = 0; column < image_pixels.getWidth(); column++)
+            {
+                ArrayList<MaskedObject> containingObjects = getAllContainingObjects(column, row);
+                if (containingObjects.isEmpty()) 
+                {
+                    Pixel p = getPixel(column,row,image_pixels);
+                    int average = p.getAverage();
+                    Color gray = new Color(average,average,average);
+                    if (average == p.getRedValue() && average == p.getBlueValue())
+                    {
+                        // already gray
+                    }
+                    else
+                    {
+                        colorPixel(column,row,gray);
+                    }
+                    continue;
+                }
+                if (containingObjects.size() > 1)
+                {
+                    System.out.println("hi");
+                }
+                double highestDepth = containingObjects.get(0).depth;
+                Color winningColor = containingObjects.get(0).color;
+                for (MaskedObject p : containingObjects)
+                {
+                    if (p.depth > highestDepth)
+                    {
+                        highestDepth = p.depth;
+                        winningColor = p.color;
+                    }
+                }
+                colorPixel(column,row,winningColor);
+            }
+            //System.out.println();
+        }
+        repaint();
     }
     
     public int getNumberColumns()
@@ -3042,6 +3097,10 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
             graphic.findEdges();
         });
         
+        graphic.colorLayersButton.addActionListener((ActionEvent e) -> {
+            graphic.colorizeImageByLayers();
+        });
+        
         graphic.GenerateTrainingArrangements.addActionListener((ActionEvent e) -> {
             graphic.generateTrainingArrangements();
         });
@@ -3081,6 +3140,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         graphic.buttons.add(graphic.saveVideoFrameButton);
         graphic.buttons.add(graphic.trackMotionButton);
         graphic.buttons.add(graphic.findEdgesButton);
+        
         //graphic.buttons.add(graphic.AssembleFramesButton);
         //graphic.buttons.add(graphic.frameRangeLbl1);
         //graphic.buttons.add(graphic.firstFrameChooser);
@@ -3112,43 +3172,8 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         //graphic.buttons2.add(graphic.FillInBlanksBox);
         
         graphic.saveVideoFrameButton.addActionListener((ActionEvent e) -> {
-            if (graphic.g == null)
-            {
-                //return;
-            }
-            File cids = new File("Video Frame PMOCs" + File.separator + "ids.cids");
-            graphic.saveCidsFile(cids);
-            String filename = graphic.filenameTextBox.getText();
-            int frameNumber = graphic.hsvColorChooser.video_current_value;
-            try {
-                FileWriter fw = new FileWriter(new File("Video Frame PMOCs"+File.separator+"video-frame-" + frameNumber + ".pmoc"));
-                fw.append(graphic.scale + "\n");
-                fw.append(graphic.polygons.size()+"\n");
-                for (MaskedObject p : graphic.polygons)
-                {
-                    //fw.append("ID: " + p.id + "\n");
-                    if (p.color == null)
-                    {
-                        fw.append("rgb 0 0 0\n");
-                    }
-                    else
-                    {
-                        fw.append("rgb " + p.color.getRed() + " " + p.color.getGreen() + " " + p.color.getBlue() + "\n");
-                    }
-                    fw.append(p.polygon.npoints+"\n");
-                    for (int i = 0; i < p.polygon.npoints; i++)
-                    {
-                        fw.append(p.polygon.xpoints[i] + " ");
-                        fw.append(p.polygon.ypoints[i] + " ");
-                    }
-                    fw.append("\n");
-                }
-                fw.close();
-                File outputfile = new File("Video Frame PMOCs"+File.separator+"video-frame-" + frameNumber + ".png");
-                ImageIO.write(graphic.image_pixels, "png", outputfile);
-            } catch (IOException ex) {
-                Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, ex);
-            }
+            graphic.saveVideoFrame();
+            
             
         }); 
         
@@ -3165,6 +3190,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                     {
                         fw.append("rgb " + p.color.getRed() + " " + p.color.getGreen() + " " + p.color.getBlue() + "\n");
                     }
+                    fw.append("depth " + p.depth + "\n");
                     fw.append(p.polygon.npoints+"\n");
                     for (int i = 0; i < p.polygon.npoints; i++)
                     {
@@ -3267,6 +3293,10 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         */
         graphic.buttons2.add(graphic.colorChooser);
         graphic.buttons2.add(graphic.recolorPolygonsButton);
+        
+        
+        graphic.buttons2.add(graphic.colorLayersButton);
+        
         //graphic.buttons2.add(graphic.PixelateButton);
         //graphic.buttons2.add(graphic.Mosaic1Button);
         //graphic.buttons2.add(graphic.Mosaic2Button);
@@ -3310,6 +3340,8 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         graphic.frame.setExtendedState(graphic.frame.getExtendedState() | JFrame.MAXIMIZED_BOTH);
         graphic.frame.setVisible(true);
         
+        graphic.setupShortcutKeys();
+        
         try {
             //graphic.getScreenCapture();
 
@@ -3320,6 +3352,186 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
 
     }
 
+    private void saveVideoFrame()
+    {
+        if (g == null)
+        {
+            //return;
+        }
+        File cids = new File("Video Frame PMOCs" + File.separator + "ids.cids");
+        saveCidsFile(cids);
+        String filename = filenameTextBox.getText();
+        int frameNumber = hsvColorChooser.video_current_value;
+        try {
+            FileWriter fw = new FileWriter(new File("Video Frame PMOCs"+File.separator+"video-frame-" + frameNumber + ".pmoc"));
+            fw.append(scale + "\n");
+            fw.append(polygons.size()+"\n");
+            for (MaskedObject p : polygons)
+            {
+                //fw.append("ID: " + p.id + "\n");
+                if (p.color == null)
+                {
+                    fw.append("rgb 0 0 0\n");
+                }
+                else
+                {
+                    fw.append("rgb " + p.color.getRed() + " " + p.color.getGreen() + " " + p.color.getBlue() + "\n");
+                }
+                fw.append("depth " + p.depth + "\n");
+                fw.append(p.polygon.npoints+"\n");
+                for (int i = 0; i < p.polygon.npoints; i++)
+                {
+                    fw.append(p.polygon.xpoints[i] + " ");
+                    fw.append(p.polygon.ypoints[i] + " ");
+                }
+                fw.append("\n");
+            }
+            fw.close();
+            File outputfile = new File("Video Frame PMOCs"+File.separator+"video-frame-" + frameNumber + ".png");
+            ImageIO.write(image_pixels, "png", outputfile);
+        } catch (IOException ex) {
+            Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, ex);
+        }
+    }
+    
+    private void setupShortcutKeys()
+    {
+        KeyStroke cmdZ = KeyStroke.getKeyStroke(KeyEvent.VK_Z, Toolkit.getDefaultToolkit().getMenuShortcutKeyMask());
+
+        getInputMap().put(cmdZ,
+                    "cmdZ");
+        getActionMap().put("cmdZ", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                System.out.println("Pressed cmd Z");
+            }
+        });
+        
+        KeyStroke cmdY = KeyStroke.getKeyStroke(KeyEvent.VK_Y, Toolkit.getDefaultToolkit().getMenuShortcutKeyMask());
+
+        getInputMap().put(cmdY,
+                    "cmdY");
+        getActionMap().put("cmdY", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                System.out.println("Pressed cmd Y");
+            }
+        });
+        
+        KeyStroke cmdS = KeyStroke.getKeyStroke(KeyEvent.VK_S, Toolkit.getDefaultToolkit().getMenuShortcutKeyMask());
+
+        getInputMap().put(cmdS,
+                    "cmdS");
+        getActionMap().put("cmdS", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                System.out.println("Pressed cmd S");
+                ImageFilters.this.saveVideoFrame();
+            }
+        });
+        
+        KeyStroke cmdU = KeyStroke.getKeyStroke(KeyEvent.VK_U, Toolkit.getDefaultToolkit().getMenuShortcutKeyMask());
+
+        getInputMap().put(cmdU,
+                    "cmdU");
+        getActionMap().put("cmdU", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                System.out.println("Pressed cmd U");
+                ImageFilters.this.selectedPolygon = null;
+                ImageFilters.this.selectedVertexIndex = -1;
+                ImageFilters.this.selectedObjects.clear();
+                ImageFilters.this.selectedVertices.clear();
+                ImageFilters.this.repaint();
+            }
+        });
+        
+        KeyStroke cmdD = KeyStroke.getKeyStroke(KeyEvent.VK_D, Toolkit.getDefaultToolkit().getMenuShortcutKeyMask());
+
+        getInputMap().put(cmdD,
+                    "cmdD");
+        getActionMap().put("cmdD", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                System.out.println("Pressed cmd D");
+                ImageFilters.this.toolList.setSelectedItem("Pen Tool");
+            }
+        });
+        
+        KeyStroke cmdI = KeyStroke.getKeyStroke(KeyEvent.VK_I, Toolkit.getDefaultToolkit().getMenuShortcutKeyMask());
+
+        getInputMap().put(cmdI,
+                    "cmdI");
+        getActionMap().put("cmdI", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                System.out.println("Pressed cmd I");
+                ImageFilters.this.toolList.setSelectedItem("Drag Select Vertices");
+            }
+        });
+        
+        KeyStroke cmdV = KeyStroke.getKeyStroke(KeyEvent.VK_V, Toolkit.getDefaultToolkit().getMenuShortcutKeyMask());
+
+        getInputMap().put(cmdV,
+                    "cmdV");
+        getActionMap().put("cmdV", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                System.out.println("Pressed cmd V");
+                ImageFilters.this.toolList.setSelectedItem("Vertex Mode");
+            }
+        });
+        
+        KeyStroke cmdB = KeyStroke.getKeyStroke(KeyEvent.VK_B, Toolkit.getDefaultToolkit().getMenuShortcutKeyMask());
+
+        getInputMap().put(cmdB,
+                    "cmdB");
+        getActionMap().put("cmdB", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                System.out.println("Pressed cmd B");
+                ImageFilters.this.toolList.setSelectedItem("Select Polygon Mode");
+            }
+        });
+        
+        KeyStroke cmdO = KeyStroke.getKeyStroke(KeyEvent.VK_O, Toolkit.getDefaultToolkit().getMenuShortcutKeyMask());
+
+        getInputMap().put(cmdO,
+                    "cmdO");
+        getActionMap().put("cmdO", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                System.out.println("Pressed cmd O");
+                ImageFilters.this.toolList.setSelectedItem("Drag Select Objects");
+            }
+        });
+        
+        KeyStroke cmdE = KeyStroke.getKeyStroke(KeyEvent.VK_E, Toolkit.getDefaultToolkit().getMenuShortcutKeyMask());
+
+        getInputMap().put(cmdE,
+                    "cmdE");
+        getActionMap().put("cmdE", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                System.out.println("Pressed cmd E");
+                ImageFilters.this.findEdges();
+            }
+        });
+        
+        KeyStroke cmdT = KeyStroke.getKeyStroke(KeyEvent.VK_T, Toolkit.getDefaultToolkit().getMenuShortcutKeyMask());
+
+        getInputMap().put(cmdT,
+                    "cmdT");
+        getActionMap().put("cmdT", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                System.out.println("Pressed cmd T");
+                ImageFilters.this.trackMotionFromPreviousFrame();
+            }
+        });
+        
+    }
+    
     private BufferedImage getScreenCapture()
     {
         boolean using_terminal = true;
@@ -4029,25 +4241,34 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
             MaskedObject poly = new MaskedObject();
             String next = reader.next();
             int numVertices;
+            double depth = 0;
             if (next.equals("rgb"))
             {
                 int r = reader.nextInt();
                 int g = reader.nextInt();
                 int b = reader.nextInt();
                 poly.color = new Color(r,g,b);
-                numVertices = reader.nextInt();
+                next = reader.next();
             }
-
+            
+            if (next.equals("depth"))
+            {
+                depth = reader.nextDouble();
+                next = reader.next();
+                numVertices = Integer.parseInt(next);
+            }
             else
             {
                 numVertices = Integer.parseInt(next);
             }
+
             for (int j = 0; j < numVertices; j++)
             {
                 int xcoord = reader.nextInt();
                 int ycoord = reader.nextInt();
                 poly.polygon.addPoint(xcoord, ycoord);
             }
+            poly.depth = depth;
             tempPolygons.add(poly);
         }
         return tempPolygons;
@@ -5051,7 +5272,8 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         }
     }
     
-    private MaskedObject pointIsContainedByObject(int x, int y) {
+    private ArrayList<MaskedObject> getAllContainingObjects(int x, int y)
+    {
         ArrayList<MaskedObject> PolygonsThatContainPoint = new ArrayList();
         for (MaskedObject p : polygons)
         {
@@ -5060,7 +5282,13 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                 PolygonsThatContainPoint.add(p);
             }
         }
-        if (PolygonsThatContainPoint.size() == 0)
+        return PolygonsThatContainPoint;
+    }
+    
+    private MaskedObject pointIsContainedByObject(int x, int y) {
+        ArrayList<MaskedObject> PolygonsThatContainPoint = getAllContainingObjects(x,y);
+        
+        if (PolygonsThatContainPoint.isEmpty())
         {
             return null;
         }
@@ -5168,15 +5396,17 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                 int y = clickedObject.polygon.ypoints[clickedObject.polygon.npoints-1];
                 //selectedVertex = new Point(x,y);
                 selectedVertexIndex = clickedObject.polygon.npoints-1;
-                colorChooser.setSelectedColor(selectedPolygon.color);
+                //colorChooser.setSelectedColor(selectedPolygon.color);
                 hsvColorChooser.setSelectedColor(selectedPolygon.color);
+                hsvColorChooser.depthField.setText(clickedObject.depth+"");
             }
             else
             {
                 selectedVertexIndex = -1;
                 //selectedVertex = null;
                 selectedPolygon = null;
-                colorChooser.setSelectedColor(Color.white);
+                hsvColorChooser.setSelectedColor(Color.white);
+                hsvColorChooser.depthField.setText("0");
             }
             repaint();
         }
@@ -5645,6 +5875,11 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
     @Override
     public void keyPressed(KeyEvent e) {
         
+
+        if (e.isControlDown() && e.getKeyChar() != 'a' && e.getKeyCode() == 65) 
+        {
+            System.out.println("Select All"); 
+        }
         if (e.getKeyCode() == KeyEvent.VK_EQUALS)
         {
             // zoom in
@@ -5703,7 +5938,6 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         
         if (e.getKeyCode() == KeyEvent.VK_W)
         {
-            
             if (!selectedObjects.isEmpty() && toolList.getSelectedItem().equals("Drag Select Objects"))
             {
                 for (MaskedObject p : selectedObjects)
@@ -5735,6 +5969,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                 //selectedVertex.y = selectedPolygon.ypoints[selectedVertexIndex];
                 selectedPolygon.polygon.invalidate();
             }
+            
             repaint();
             return;
         }
@@ -5772,6 +6007,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                 //selectedVertex.y = selectedPolygon.ypoints[selectedVertexIndex];
                 selectedPolygon.polygon.invalidate();
             }
+            
             repaint();
             return;
         }
@@ -5809,6 +6045,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                 //selectedVertex.x = selectedPolygon.xpoints[selectedVertexIndex];
                 selectedPolygon.polygon.invalidate();
             }
+            
             repaint();
             return;
         }
@@ -5846,6 +6083,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                 //selectedVertex.x = selectedPolygon.xpoints[selectedVertexIndex];
                 selectedPolygon.polygon.invalidate();
             }
+            
             repaint();
             return;
         }
@@ -5876,8 +6114,8 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                 selectedVertexIndex--;
             }
             selectedPolygon.polygon.invalidate();
+            
             repaint();
-            return;
         }
         
         
@@ -6123,10 +6361,12 @@ class MaskedObject
     Polygon polygon;
     Color color;
     int id;
+    double depth;
     
     public MaskedObject()
     {
         polygon = new Polygon();
+        depth = 0;
     }
     
 }
