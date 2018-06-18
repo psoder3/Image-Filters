@@ -11,6 +11,8 @@ import java.awt.Graphics2D;
 import java.awt.GridLayout;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.FocusEvent;
+import java.awt.event.FocusListener;
 import javax.swing.JButton;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
@@ -58,6 +60,9 @@ public class HSVColorChooser extends JPanel {
     
     JButton beginFramesButton = new JButton("Grab Frames For Editing");
     JTextField numFramesField = new JTextField(3);
+    
+    JLabel depthLbl = new JLabel("   Object Depth");
+    JTextField depthField = new JTextField(3);
 
     
     boolean lastPressedWasBackward = false;
@@ -95,6 +100,22 @@ public class HSVColorChooser extends JPanel {
     
     public HSVColorChooser(ImageFilters imgFilters)
     {
+        JPanel depthPanel = new JPanel();
+        depthField.setText("0");
+        depthPanel.add(this.depthLbl);
+        depthPanel.add(this.depthField);
+        depthField.addFocusListener(new FocusListener() {
+            @Override
+            public void focusGained(FocusEvent e) {
+            }
+
+            @Override
+            public void focusLost(FocusEvent e) {
+                imageFilters.selectedPolygon.depth = Double.parseDouble(depthField.getText());
+                //imageFilters.colorizeImageByLayers(); // this function takes forever
+            }
+        });
+        
         this.imageFilters = imgFilters;
         this.setLayout(new GridLayout(11,1));
         
@@ -395,6 +416,7 @@ public class HSVColorChooser extends JPanel {
         this.add(new JLabel("   Video Frame"));
         this.add(video_frame_panel);
         this.add(grabFramesPanel);
+        this.add(depthPanel);
         //this.add(red_panel);
         //this.add(green_panel);
         //this.add(blue_panel);
