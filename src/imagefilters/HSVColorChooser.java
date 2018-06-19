@@ -111,7 +111,7 @@ public class HSVColorChooser extends JPanel {
 
             @Override
             public void focusLost(FocusEvent e) {
-                imageFilters.selectedPolygon.depth = Double.parseDouble(depthField.getText());
+                imageFilters.currentProjectState.selectedPolygon.depth = Double.parseDouble(depthField.getText());
                 //imageFilters.colorizeImageByLayers(); // this function takes forever
             }
         });
@@ -485,10 +485,10 @@ public class HSVColorChooser extends JPanel {
         blue_slider.setValue(blue);
         blue_spinner.setValue(blue);
         */
-        if (imageFilters.selectedPolygon != null)
+        if (imageFilters.currentProjectState.selectedPolygon != null)
         {
             Color color = getColor();
-            imageFilters.selectedPolygon.color = color;
+            imageFilters.currentProjectState.selectedPolygon.color = color;
             imageFilters.colorizePolygon(color);
             imageFilters.repaint();
         }

@@ -55,11 +55,15 @@ import java.beans.PropertyChangeListener;
 import java.io.FileNotFoundException;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.Stack;
 import javax.swing.AbstractAction;
 import javax.swing.Action;
 
 import javax.swing.JFrame;
 import javax.swing.JLabel;
+import javax.swing.JMenu;
+import javax.swing.JMenuBar;
+import javax.swing.JMenuItem;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTextField;
@@ -84,6 +88,26 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
     int leftRight = 33;
     int upDown = 19;
     int scrollAmount = 10;
+    
+    Stack<ProjectState> UndoStack = new Stack();
+    Stack<ProjectState> RedoStack = new Stack();
+    
+    
+    JMenuBar menuBar;
+    JMenu menu;
+    JMenuItem undoItem;
+    JMenuItem redoItem;
+    JMenuItem saveItem;
+    JMenuItem deselectItem;
+    JMenuItem vertexModeItem;
+    JMenuItem polygonModeItem;
+    JMenuItem dragVerticesItem;
+    JMenuItem dragObjectsItem;
+    JMenuItem drawItem;
+    JMenuItem findEdgesItem;
+    JMenuItem trackMotionItem;
+    
+    
     
     JButton LoadImageButton = new JButton("Load Image");
     JButton LoadTrainingImageButton = new JButton("Load Training Image");
@@ -158,19 +182,20 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
     HashMap<String,Integer> patterns = new HashMap();
     int frameCounter = 0;
     
+    ProjectState currentProjectState = new ProjectState();
     
-    ArrayList<MaskedObject> polygons;
-    MaskedObject selectedPolygon;
+    //ArrayList<MaskedObject> polygons;
+    //MaskedObject selectedPolygon;
     //Point selectedVertex;
-    int selectedVertexIndex = -1;
-    int hoverVertexIndex = -1;
+    //int selectedVertexIndex = -1;
+    //int hoverVertexIndex = -1;
     boolean currentlyDragging = false;
-    MaskedObject adjacentPolygon;
-    int adjacentPolygonVertex = -1;
+    //MaskedObject adjacentPolygon;
+    //int adjacentPolygonVertex = -1;
     Click DragDown;
     Click DragUp;
-    ArrayList<MaskedObject> selectedObjects = new ArrayList();
-    ArrayList<ArrayList<Integer>> selectedVertices = new ArrayList();
+    //ArrayList<MaskedObject> selectedObjects = new ArrayList();
+    //ArrayList<ArrayList<Integer>> selectedVertices = new ArrayList();
     
     Rectangle rectangle;
 
@@ -235,6 +260,138 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
 
     public ImageFilters() {
         this.colorChooser = new ColorChooserButton(Color.WHITE, this);
+        //Create the menu bar.
+        menuBar = new JMenuBar();
+
+        //Build the first menu.
+        menu = new JMenu("Keyboard Shortcuts");
+        //menu.setMnemonic(KeyEvent.VK_A);
+        menu.getAccessibleContext().setAccessibleDescription(
+                "The only menu in this program that has menu items");
+        menuBar.add(menu);
+        //a group of JMenuItems
+        undoItem = new JMenuItem("Undo");
+        undoItem.setAccelerator(KeyStroke.getKeyStroke(
+                KeyEvent.VK_Z, Toolkit.getDefaultToolkit().getMenuShortcutKeyMask()));
+        undoItem.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                undo();
+            }
+        });
+        menu.add(undoItem);
+        
+        redoItem = new JMenuItem("Redo");
+        redoItem.setAccelerator(KeyStroke.getKeyStroke(
+                KeyEvent.VK_Y, Toolkit.getDefaultToolkit().getMenuShortcutKeyMask()));
+        redoItem.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                redo();
+            }
+        });
+        menu.add(redoItem);
+        
+        saveItem = new JMenuItem("Save Video Frame");
+        saveItem.setAccelerator(KeyStroke.getKeyStroke(
+                KeyEvent.VK_S, Toolkit.getDefaultToolkit().getMenuShortcutKeyMask()));
+        saveItem.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                saveVideoFrame();
+            }
+        });
+        menu.add(saveItem);
+        
+        deselectItem = new JMenuItem("Deselect");
+        deselectItem.setAccelerator(KeyStroke.getKeyStroke(
+                KeyEvent.VK_U, Toolkit.getDefaultToolkit().getMenuShortcutKeyMask()));
+        deselectItem.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                deselect();
+            }
+        });
+        menu.add(deselectItem);
+        
+        vertexModeItem = new JMenuItem("Vertex Mode");
+        vertexModeItem.setAccelerator(KeyStroke.getKeyStroke(
+                KeyEvent.VK_V, Toolkit.getDefaultToolkit().getMenuShortcutKeyMask()));
+        vertexModeItem.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                setVertexMode();
+            }
+        });
+        menu.add(vertexModeItem);
+        
+        polygonModeItem = new JMenuItem("Select Polygon Mode");
+        polygonModeItem.setAccelerator(KeyStroke.getKeyStroke(
+                KeyEvent.VK_B, Toolkit.getDefaultToolkit().getMenuShortcutKeyMask()));
+        polygonModeItem.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                setSelectMode();
+            }
+        });
+        menu.add(polygonModeItem);
+        
+        dragVerticesItem = new JMenuItem("Drag Select Vertices");
+        dragVerticesItem.setAccelerator(KeyStroke.getKeyStroke(
+                KeyEvent.VK_I, Toolkit.getDefaultToolkit().getMenuShortcutKeyMask()));
+        dragVerticesItem.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                setDragVerticesMode();
+            }
+        });
+        menu.add(dragVerticesItem);
+        
+        dragObjectsItem = new JMenuItem("Drag Select Objects");
+        dragObjectsItem.setAccelerator(KeyStroke.getKeyStroke(
+                KeyEvent.VK_O, Toolkit.getDefaultToolkit().getMenuShortcutKeyMask()));
+        dragObjectsItem.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                setDragObjectsMode();
+            }
+        });
+        menu.add(dragObjectsItem);
+        
+        drawItem = new JMenuItem("Pen Tool");
+        drawItem.setAccelerator(KeyStroke.getKeyStroke(
+                KeyEvent.VK_D, Toolkit.getDefaultToolkit().getMenuShortcutKeyMask()));
+        drawItem.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                setDrawingMode();
+            }
+        });
+        menu.add(drawItem);
+        
+        findEdgesItem = new JMenuItem("Find Edges");
+        findEdgesItem.setAccelerator(KeyStroke.getKeyStroke(
+                KeyEvent.VK_E, Toolkit.getDefaultToolkit().getMenuShortcutKeyMask()));
+        findEdgesItem.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                findEdges();
+            }
+        });
+        menu.add(findEdgesItem);
+        
+        trackMotionItem = new JMenuItem("Track Motion");
+        trackMotionItem.setAccelerator(KeyStroke.getKeyStroke(
+                KeyEvent.VK_T, Toolkit.getDefaultToolkit().getMenuShortcutKeyMask()));
+        trackMotionItem.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                trackMotionFromPreviousFrame();
+            }
+        });
+        menu.add(trackMotionItem);
+        
+        
     }
     
     public Pixel findMedian(ArrayList<Pixel> kernal, String color)
@@ -389,7 +546,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         {
             for (int column = 0; column < image_pixels.getWidth(); column++)
             {
-                if (selectedPolygon != null && !selectedPolygon.polygon.contains(column,row))
+                if (currentProjectState.selectedPolygon != null && !currentProjectState.selectedPolygon.polygon.contains(column,row))
                 {
                     continue;
                 }
@@ -440,13 +597,13 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
     
     public boolean pointIsInsideContainedPolygon(int x, int y)
     {
-        for (MaskedObject p : polygons)
+        for (MaskedObject p : currentProjectState.polygons)
         {
-            if (p != selectedPolygon && p.polygon.contains(x,y))
+            if (p != currentProjectState.selectedPolygon && p.polygon.contains(x,y))
             {
                 for (int i = 0; i < p.polygon.npoints; i++)
                 {
-                    if (selectedPolygon.polygon.contains(p.polygon.xpoints[i],p.polygon.ypoints[i]))
+                    if (currentProjectState.selectedPolygon.polygon.contains(p.polygon.xpoints[i],p.polygon.ypoints[i]))
                     {
                         return true;
                     }
@@ -685,7 +842,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
     
     public void colorizePolygon(Color color_picked)
     {
-        if (color_picked == null || selectedPolygon == null)
+        if (color_picked == null || currentProjectState.selectedPolygon == null)
         {
             return;
         }
@@ -694,7 +851,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
             for (int column = 0; column < image_pixels.getWidth(); column++)
             {
                 
-                if (!selectedPolygon.polygon.contains(column,row))
+                if (!currentProjectState.selectedPolygon.polygon.contains(column,row))
                 {
                     continue;
                 }
@@ -711,7 +868,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                 else
                 {
                     boolean topLayer = true;
-                    double selectedDepth = selectedPolygon.depth;
+                    double selectedDepth = currentProjectState.selectedPolygon.depth;
                     for (MaskedObject p : containingObjects)
                     {
                         if (p.depth > selectedDepth)
@@ -1537,7 +1694,8 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         {
             for (int column = 1; column < image_pixels.getWidth()-1; column++)
             {
-                if (selectedPolygon != null && !selectedPolygon.polygon.contains(column,row))
+                if (currentProjectState.selectedPolygon != null 
+                        && !currentProjectState.selectedPolygon.polygon.contains(column,row))
                 {
                     continue;
                 }
@@ -1854,7 +2012,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         {
             for (int column = 0; column < image_pixels.getWidth(); column++)
             {
-                if (selectedPolygon != null && !selectedPolygon.polygon.contains(column,row))
+                if (currentProjectState.selectedPolygon != null && !currentProjectState.selectedPolygon.polygon.contains(column,row))
                 {
                     continue;
                 }
@@ -2110,28 +2268,29 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
 
             if (ShowOutlinesCheckbox.isSelected())
             {
-                for (MaskedObject p : polygons)
+                for (MaskedObject p : currentProjectState.polygons)
                 {
                     g.setColor(Color.BLUE);
-                    if (p.equals(selectedPolygon))
+                    if (p.equals(currentProjectState.selectedPolygon))
                     {
                         g.setColor(Color.RED);
                     }
-                    if (p.equals(adjacentPolygon))
+                    if (p.equals(currentProjectState.adjacentPolygon))
                     {
                         g.setColor(Color.GREEN);
                     }
                     g.drawPolygon(p.polygon);
-                    if (p.equals(selectedPolygon))
+                    if (p.equals(currentProjectState.selectedPolygon))
                     {
                         g.setColor(Color.GREEN);
-                        g.drawLine(p.polygon.xpoints[selectedVertexIndex], p.polygon.ypoints[selectedVertexIndex],
+                        g.drawLine(p.polygon.xpoints[currentProjectState.selectedVertexIndex], 
+                                p.polygon.ypoints[currentProjectState.selectedVertexIndex],
                                 p.polygon.xpoints[0], p.polygon.ypoints[0]);
                     }
                 }
                 
             }
-            if (selectedVertexIndex != -1)
+            if (currentProjectState.selectedVertexIndex != -1)
             {
                 int dotWidth = (int)(9/(scale/2));
                 if (dotWidth < 1)
@@ -2144,10 +2303,11 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                     dotOffset = 1;
                 }
                 g.setColor(Color.RED);
-                g.fillOval(selectedPolygon.polygon.xpoints[selectedVertexIndex] - dotOffset, selectedPolygon.polygon.ypoints[selectedVertexIndex] - dotOffset, dotWidth, dotWidth);
+                g.fillOval(currentProjectState.selectedPolygon.polygon.xpoints[currentProjectState.selectedVertexIndex] - dotOffset, 
+                        currentProjectState.selectedPolygon.polygon.ypoints[currentProjectState.selectedVertexIndex] - dotOffset, dotWidth, dotWidth);
             }
 
-            if (selectedPolygon != null)
+            if (currentProjectState.selectedPolygon != null)
             {
                 g.setColor(Color.RED);
                 int dotWidth = (int)(5/(scale/2));
@@ -2160,23 +2320,25 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                 {
                     dotOffset = 1;
                 }
-                for (int i = 0; i < selectedPolygon.polygon.npoints; i++)
+                for (int i = 0; i < currentProjectState.selectedPolygon.polygon.npoints; i++)
                 {
-                    if (i == selectedVertexIndex)
+                    if (i == currentProjectState.selectedVertexIndex)
                     {
                         continue;
                     }
-                    if (i == hoverVertexIndex)
+                    if (i == currentProjectState.hoverVertexIndex)
                     {
-                        g.fillOval(selectedPolygon.polygon.xpoints[i] - dotOffset*2, selectedPolygon.polygon.ypoints[i] - dotOffset*2, dotWidth*2, dotWidth*2);
+                        g.fillOval(currentProjectState.selectedPolygon.polygon.xpoints[i] - dotOffset*2, 
+                                currentProjectState.selectedPolygon.polygon.ypoints[i] - dotOffset*2, dotWidth*2, dotWidth*2);
                     }
                     else
                     {
-                        g.fillOval(selectedPolygon.polygon.xpoints[i] - dotOffset, selectedPolygon.polygon.ypoints[i] - dotOffset, dotWidth, dotWidth);
+                        g.fillOval(currentProjectState.selectedPolygon.polygon.xpoints[i] - dotOffset, 
+                                currentProjectState.selectedPolygon.polygon.ypoints[i] - dotOffset, dotWidth, dotWidth);
                     }
                 }
             }
-            if (adjacentPolygon != null)
+            if (currentProjectState.adjacentPolygon != null)
             {
                 g.setColor(Color.GREEN);
                 int dotWidth = (int)(5/(scale/2));
@@ -2189,15 +2351,17 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                 {
                     dotOffset = 1;
                 }
-                for (int i = 0; i < adjacentPolygon.polygon.npoints; i++)
+                for (int i = 0; i < currentProjectState.adjacentPolygon.polygon.npoints; i++)
                 {
-                    if (i == adjacentPolygonVertex)
+                    if (i == currentProjectState.adjacentPolygonVertex)
                     {
-                        g.fillOval(adjacentPolygon.polygon.xpoints[i] - dotOffset*2, adjacentPolygon.polygon.ypoints[i] - dotOffset*2, dotWidth*2, dotWidth*2);
+                        g.fillOval(currentProjectState.adjacentPolygon.polygon.xpoints[i] - dotOffset*2, 
+                                currentProjectState.adjacentPolygon.polygon.ypoints[i] - dotOffset*2, dotWidth*2, dotWidth*2);
                     }
                     else
                     {
-                        g.fillOval(adjacentPolygon.polygon.xpoints[i] - dotOffset, adjacentPolygon.polygon.ypoints[i] - dotOffset, dotWidth, dotWidth);
+                        g.fillOval(currentProjectState.adjacentPolygon.polygon.xpoints[i] - dotOffset, 
+                                currentProjectState.adjacentPolygon.polygon.ypoints[i] - dotOffset, dotWidth, dotWidth);
                     }
                 }
             }
@@ -2212,15 +2376,15 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                 g2d.setStroke(dashed);
                 g2d.drawRect(DragDown.x, DragDown.y, DragUp.x - DragDown.x, DragUp.y - DragDown.y);
             }
-            if (!selectedObjects.isEmpty() && toolList.getSelectedItem().equals("Drag Select Objects"))
+            if (!currentProjectState.selectedObjects.isEmpty() && toolList.getSelectedItem().equals("Drag Select Objects"))
             {
                 g.setColor(Color.CYAN);
-                for (MaskedObject p : selectedObjects)
+                for (MaskedObject p : currentProjectState.selectedObjects)
                 {
                     g.drawPolygon(p.polygon);
                 }
             }
-            if (!selectedVertices.isEmpty() && toolList.getSelectedItem().equals("Drag Select Vertices"))
+            if (!currentProjectState.selectedVertices.isEmpty() && toolList.getSelectedItem().equals("Drag Select Vertices"))
             {
                 g.setColor(Color.CYAN);
                 int dotWidth = (int)(5/(scale/2));
@@ -2233,10 +2397,10 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                 {
                     dotOffset = 1;
                 }
-                for (int i = 0; i < selectedVertices.size(); i++)
+                for (int i = 0; i < currentProjectState.selectedVertices.size(); i++)
                 {
-                    ArrayList<Integer> vertList = selectedVertices.get(i);
-                    Polygon p = selectedObjects.get(i).polygon;
+                    ArrayList<Integer> vertList = currentProjectState.selectedVertices.get(i);
+                    Polygon p = currentProjectState.selectedObjects.get(i).polygon;
 
                     for (int j = 0; j < vertList.size(); j++)
                     {
@@ -2327,7 +2491,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                 File arrangementFile = new File("arrangements/arrangement" + (i+existingImages) + ".txt");
                 fw = new FileWriter(arrangementFile);
                 filterPolygon = false;
-                selectedPolygon.polygon.reset();
+                currentProjectState.selectedPolygon.polygon.reset();
                 neighbor_key_dictionary.clear();
                 neighbor_key_dictionary_1to1.clear();
                 alreadyFoundModes = false;
@@ -2477,7 +2641,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                 
                 reader.close();
             }
-            for (MaskedObject p : polygons)
+            for (MaskedObject p : currentProjectState.polygons)
             {
                 smartAdd(fakePolygons,p);
             }
@@ -2548,7 +2712,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
     
     public double getContrastFromSides(BufferedImage bi, int x, int y, int polygonIndex, int vertexIndex)
     {
-        MaskedObject poly = polygons.get(polygonIndex);
+        MaskedObject poly = currentProjectState.polygons.get(polygonIndex);
         int prevPointIndex = ((vertexIndex+poly.polygon.npoints)-1)%poly.polygon.npoints;
         int nextPointIndex = (vertexIndex+1)%poly.polygon.npoints;
         int prevX = poly.polygon.xpoints[prevPointIndex];
@@ -2662,15 +2826,17 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
     
     public void findEdges()
     {
+        addCurrentStatusToEditHistory();
+
         int searchRadius = 10;
         searchRadius /= scale;
-        if (selectedVertices.size() > 0)
+        if (currentProjectState.selectedVertices.size() > 0)
         {
-            for (int i = 0; i < selectedVertices.size(); i++)
+            for (int i = 0; i < currentProjectState.selectedVertices.size(); i++)
             {
-                ArrayList<Integer> vertList = selectedVertices.get(i);
-                MaskedObject p = selectedObjects.get(i);
-                for (int j = 0; j < selectedVertices.get(i).size(); j++)
+                ArrayList<Integer> vertList = currentProjectState.selectedVertices.get(i);
+                MaskedObject p = currentProjectState.selectedObjects.get(i);
+                for (int j = 0; j < currentProjectState.selectedVertices.get(i).size(); j++)
                 {
                     int vertIndex = vertList.get(j);
                     int prevX = p.polygon.xpoints[vertIndex];
@@ -2707,20 +2873,20 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
             
             repaint();
         }
-        else if (selectedPolygon != null)
+        else if (currentProjectState.selectedPolygon != null)
         {
-            for (int i = 0; i < selectedPolygon.polygon.npoints; i++)
+            for (int i = 0; i < currentProjectState.selectedPolygon.polygon.npoints; i++)
             {
-                int prevX = selectedPolygon.polygon.xpoints[i];
-                int prevY = selectedPolygon.polygon.ypoints[i];
-                int selectedPolygonIndex = getPolygonIndex(selectedPolygon);
+                int prevX = currentProjectState.selectedPolygon.polygon.xpoints[i];
+                int prevY = currentProjectState.selectedPolygon.polygon.ypoints[i];
+                int selectedPolygonIndex = getPolygonIndex(currentProjectState.selectedPolygon);
                 Click c = findEdgeForVertex(prevX,prevY,searchRadius,selectedPolygonIndex,i);
                 
-                int tempX = selectedPolygon.polygon.xpoints[i];
-                int tempY = selectedPolygon.polygon.ypoints[i];
-                selectedPolygon.polygon.xpoints[i] = c.x;
-                selectedPolygon.polygon.ypoints[i] = c.y; 
-                for (MaskedObject mo : polygons)
+                int tempX = currentProjectState.selectedPolygon.polygon.xpoints[i];
+                int tempY = currentProjectState.selectedPolygon.polygon.ypoints[i];
+                currentProjectState.selectedPolygon.polygon.xpoints[i] = c.x;
+                currentProjectState.selectedPolygon.polygon.ypoints[i] = c.y; 
+                for (MaskedObject mo : currentProjectState.polygons)
                 {
                     boolean affected = false;
                     for (int k = 0; k < mo.polygon.npoints; k++)
@@ -2738,16 +2904,16 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                     }
                 }
             }
-            selectedPolygon.polygon.invalidate();
+            currentProjectState.selectedPolygon.polygon.invalidate();
             repaint();
         }
     }
     
     private int getPolygonIndex(MaskedObject p)
     {
-        for (int i = 0; i < polygons.size(); i++)
+        for (int i = 0; i < currentProjectState.polygons.size(); i++)
         {
-            if (polygons.get(i).polygon == p.polygon)
+            if (currentProjectState.polygons.get(i).polygon == p.polygon)
             {
                 return i;
             }
@@ -2755,12 +2921,97 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         return -1;
     }
     
+    private void undo()
+    {
+        if (UndoStack.empty())
+        {
+            return;
+        }
+        RedoStack.push(deepCopyState(currentProjectState));
+        currentProjectState = UndoStack.pop();
+        repaint();
+    }
+    
+    private void redo()
+    {
+        if (RedoStack.empty())
+        {
+            return;
+        }
+        UndoStack.push(deepCopyState(currentProjectState));
+        currentProjectState = RedoStack.pop();
+        repaint();
+    }
+    
+    private void addCurrentStatusToEditHistory()
+    {
+        
+        UndoStack.push(deepCopyState(currentProjectState));
+    }
+
+    private ArrayList<ArrayList<Integer>> deepCopyVertices(ArrayList<ArrayList<Integer>> vertices)
+    {
+        ArrayList<ArrayList<Integer>> copiedArrayList = new ArrayList();
+        for (ArrayList<Integer> vertexList : vertices)
+        {
+            ArrayList<Integer> copiedVertexList = new ArrayList();
+            for (int index : vertexList)
+            {
+                copiedVertexList.add(index);
+            }
+            copiedArrayList.add(copiedVertexList);
+        }
+        return copiedArrayList;
+    }
+    
+    private ProjectState deepCopyState(ProjectState state)
+    {
+        ProjectState copiedState = new ProjectState();
+        ArrayList<MaskedObject> copiedPolys = new ArrayList();
+        for (MaskedObject p : state.polygons)
+        {
+            copiedPolys.add(deepCopyPolygon(p));
+        }
+        copiedState.polygons = copiedPolys;
+        copiedState.adjacentPolygon = deepCopyPolygon(state.adjacentPolygon);
+        copiedState.adjacentPolygonVertex = state.adjacentPolygonVertex;
+        copiedState.hoverVertexIndex = state.hoverVertexIndex;
+        ArrayList<MaskedObject> copiedSelectedPolys = new ArrayList();
+        for (MaskedObject p : state.selectedObjects)
+        {
+            copiedSelectedPolys.add(deepCopyPolygon(p));
+        }
+        copiedState.selectedObjects = copiedSelectedPolys;
+        copiedState.selectedVertexIndex = state.selectedVertexIndex;
+        copiedState.selectedPolygon = deepCopyPolygon(state.selectedPolygon);
+        copiedState.selectedVertices = deepCopyVertices(state.selectedVertices);
+        return copiedState;
+    }
+    
+    private MaskedObject deepCopyPolygon(MaskedObject p)
+    {
+        if (p == null) return null;
+        
+        MaskedObject copy = new MaskedObject();
+        if (p.color != null)
+        {
+            int rgb = p.color.getRGB();
+            copy.color = new Color(rgb);
+        }
+        
+        copy.depth = p.depth;
+        copy.id = p.id;
+        copy.polygon = new Polygon(p.polygon.xpoints,p.polygon.ypoints,p.polygon.npoints);
+        return copy;
+    }
+    
     public void trackMotionFromPreviousFrame()
     {
+        addCurrentStatusToEditHistory();
         int searchRadius = 16;
         searchRadius /= scale;
         int tweakableScalar = 0;
-        if (selectedPolygon == null)
+        if (currentProjectState.selectedPolygon == null)
         {
             return;
         }
@@ -2769,7 +3020,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
             File prevImageFile = new File("Video Frame PMOCs" + File.separator + "video-frame-" + (frameNumber-1) + ".png");
             File prevPMOCFile = new File("Video Frame PMOCs" + File.separator + "video-frame-" + (frameNumber-1) + ".pmoc");
             ArrayList<MaskedObject> prevFrameObjects = getDataFromPMOC(prevPMOCFile);
-            int prevFramePolygonIndex = getPolygonIndex(selectedPolygon);
+            int prevFramePolygonIndex = getPolygonIndex(currentProjectState.selectedPolygon);
             MaskedObject prevPolygon = prevFrameObjects.get(prevFramePolygonIndex);
             BufferedImage previousImg = ImageIO.read(prevImageFile);
             for (int i = 0; i < prevPolygon.polygon.npoints; i++)
@@ -2782,7 +3033,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                 double currX = getIntelligentFingerprintX(image_pixels,prevX,prevY);
                 double currY = getIntelligentFingerprintY(image_pixels,prevX,prevY);
                 double mostSimilarFingerprint = Math.sqrt(Math.pow(currX - prevFingerprintX,2)+Math.pow(currY - prevFingerprintY,2));
-                int selectedPolygonIndex = getPolygonIndex(selectedPolygon);
+                int selectedPolygonIndex = getPolygonIndex(currentProjectState.selectedPolygon);
                 double contrastOnSide = getContrastFromSides(image_pixels,prevX,prevY,selectedPolygonIndex,vertIndex);
                 mostSimilarFingerprint += (tweakableScalar)*(1.0/contrastOnSide);
                 int mostSimilarX = prevX;
@@ -2805,13 +3056,13 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                         }
                     }
                 }
-                int tempX = selectedPolygon.polygon.xpoints[i];
-                int tempY = selectedPolygon.polygon.ypoints[i];
+                int tempX = currentProjectState.selectedPolygon.polygon.xpoints[i];
+                int tempY = currentProjectState.selectedPolygon.polygon.ypoints[i];
                 
-                selectedPolygon.polygon.xpoints[i] = mostSimilarX;
-                selectedPolygon.polygon.ypoints[i] = mostSimilarY; 
+                currentProjectState.selectedPolygon.polygon.xpoints[i] = mostSimilarX;
+                currentProjectState.selectedPolygon.polygon.ypoints[i] = mostSimilarY; 
                 
-                for (MaskedObject p : polygons)
+                for (MaskedObject p : currentProjectState.polygons)
                 {
                     boolean affected = false;
                     for (int j = 0; j < p.polygon.npoints; j++)
@@ -2829,7 +3080,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                     }
                 }
             }
-            selectedPolygon.polygon.invalidate();
+            currentProjectState.selectedPolygon.polygon.invalidate();
             repaint();
         } catch (IOException ex) {
             Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, ex);
@@ -2839,9 +3090,9 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
     public static void main(String[] args) {
         
         
-        
+        System.setProperty("apple.laf.useScreenMenuBar", "true");
         final ImageFilters graphic = new ImageFilters();
-        graphic.polygons = new ArrayList();
+        graphic.currentProjectState.polygons = new ArrayList();
         graphic.ShowOutlinesCheckbox.setSelected(true);
         //graphic.assembleVideoFromFrames();
         graphic.numberMosaicColumnsBox.setText("30");
@@ -3183,8 +3434,8 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
             try {
                 FileWriter fw = new FileWriter(new File("PMOCs"+File.separator+filename+".pmoc"));
                 fw.append(graphic.scale + "\n");
-                fw.append(graphic.polygons.size()+"\n");
-                for (MaskedObject p : graphic.polygons)
+                fw.append(graphic.currentProjectState.polygons.size()+"\n");
+                for (MaskedObject p : graphic.currentProjectState.polygons)
                 {
                     if (p.color != null)
                     {
@@ -3334,6 +3585,9 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         buttonPanel.add(graphic.buttons2);
         graphic.frame.add(buttonPanel, BorderLayout.SOUTH);
         graphic.frame.add(graphic.hsvColorChooser, BorderLayout.EAST);
+        
+        graphic.frame.setJMenuBar(graphic.menuBar);
+        
         graphic.revalidate();
         graphic.repaint();
         graphic.frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -3365,8 +3619,8 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         try {
             FileWriter fw = new FileWriter(new File("Video Frame PMOCs"+File.separator+"video-frame-" + frameNumber + ".pmoc"));
             fw.append(scale + "\n");
-            fw.append(polygons.size()+"\n");
-            for (MaskedObject p : polygons)
+            fw.append(currentProjectState.polygons.size()+"\n");
+            for (MaskedObject p : currentProjectState.polygons)
             {
                 //fw.append("ID: " + p.id + "\n");
                 if (p.color == null)
@@ -3394,6 +3648,40 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         }
     }
     
+    private void deselect()
+    {
+        currentProjectState.selectedPolygon = null;
+        currentProjectState.selectedVertexIndex = -1;
+        currentProjectState.selectedObjects.clear();
+        currentProjectState.selectedVertices.clear();
+        repaint();
+    }
+    
+    private void setDrawingMode()
+    {
+        toolList.setSelectedItem("Pen Tool");
+    }
+    
+    private void setDragVerticesMode()
+    {
+        toolList.setSelectedItem("Drag Select Vertices");
+    }
+    
+    private void setDragObjectsMode()
+    {
+        toolList.setSelectedItem("Drag Select Objects");
+    }
+    
+    private void setVertexMode()
+    {
+        toolList.setSelectedItem("Vertex Mode");
+    }
+    
+    private void setSelectMode()
+    {
+        toolList.setSelectedItem("Select Polygon Mode");
+    }
+    
     private void setupShortcutKeys()
     {
         KeyStroke cmdZ = KeyStroke.getKeyStroke(KeyEvent.VK_Z, Toolkit.getDefaultToolkit().getMenuShortcutKeyMask());
@@ -3404,6 +3692,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
             @Override
             public void actionPerformed(ActionEvent e) {
                 System.out.println("Pressed cmd Z");
+                undo();
             }
         });
         
@@ -3415,6 +3704,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
             @Override
             public void actionPerformed(ActionEvent e) {
                 System.out.println("Pressed cmd Y");
+                redo();
             }
         });
         
@@ -3426,7 +3716,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
             @Override
             public void actionPerformed(ActionEvent e) {
                 System.out.println("Pressed cmd S");
-                ImageFilters.this.saveVideoFrame();
+                saveVideoFrame();
             }
         });
         
@@ -3438,11 +3728,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
             @Override
             public void actionPerformed(ActionEvent e) {
                 System.out.println("Pressed cmd U");
-                ImageFilters.this.selectedPolygon = null;
-                ImageFilters.this.selectedVertexIndex = -1;
-                ImageFilters.this.selectedObjects.clear();
-                ImageFilters.this.selectedVertices.clear();
-                ImageFilters.this.repaint();
+                deselect();
             }
         });
         
@@ -3454,7 +3740,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
             @Override
             public void actionPerformed(ActionEvent e) {
                 System.out.println("Pressed cmd D");
-                ImageFilters.this.toolList.setSelectedItem("Pen Tool");
+                setDrawingMode();
             }
         });
         
@@ -3466,7 +3752,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
             @Override
             public void actionPerformed(ActionEvent e) {
                 System.out.println("Pressed cmd I");
-                ImageFilters.this.toolList.setSelectedItem("Drag Select Vertices");
+                setDragVerticesMode();
             }
         });
         
@@ -3478,7 +3764,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
             @Override
             public void actionPerformed(ActionEvent e) {
                 System.out.println("Pressed cmd V");
-                ImageFilters.this.toolList.setSelectedItem("Vertex Mode");
+                setVertexMode();
             }
         });
         
@@ -3490,7 +3776,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
             @Override
             public void actionPerformed(ActionEvent e) {
                 System.out.println("Pressed cmd B");
-                ImageFilters.this.toolList.setSelectedItem("Select Polygon Mode");
+                setSelectMode();
             }
         });
         
@@ -3502,7 +3788,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
             @Override
             public void actionPerformed(ActionEvent e) {
                 System.out.println("Pressed cmd O");
-                ImageFilters.this.toolList.setSelectedItem("Drag Select Objects");
+                setDragObjectsMode();
             }
         });
         
@@ -3514,7 +3800,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
             @Override
             public void actionPerformed(ActionEvent e) {
                 System.out.println("Pressed cmd E");
-                ImageFilters.this.findEdges();
+                findEdges();
             }
         });
         
@@ -3526,7 +3812,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
             @Override
             public void actionPerformed(ActionEvent e) {
                 System.out.println("Pressed cmd T");
-                ImageFilters.this.trackMotionFromPreviousFrame();
+                trackMotionFromPreviousFrame();
             }
         });
         
@@ -4213,7 +4499,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                 int g = file_in.nextInt();
                 int b = file_in.nextInt();
                 
-                for (MaskedObject p : polygons)
+                for (MaskedObject p : currentProjectState.polygons)
                 {
                     if (p.id == id)
                     {
@@ -4276,10 +4562,10 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
     
     public void openVideoPMOC(String filepath, File pmoc)
     {
-        polygons.clear();
+        currentProjectState.polygons.clear();
         try {
             
-            polygons = getDataFromPMOC(pmoc);
+            currentProjectState.polygons = getDataFromPMOC(pmoc);
             openCidsFile();
             
             selected_file = new File(filepath + ".png");
@@ -4432,7 +4718,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
     public void loadPMOC(File selected_pmoc_file)
     {
         try {
-            polygons = getDataFromPMOC(selected_pmoc_file);
+            currentProjectState.polygons = getDataFromPMOC(selected_pmoc_file);
 
             repaint();
         } catch (FileNotFoundException ex) {
@@ -4550,8 +4836,8 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
             if (pmoc.exists())
             {
                 loadPMOC(pmoc);
-                selectedPolygon = null;
-                selectedVertexIndex = -1;
+                currentProjectState.selectedPolygon = null;
+                currentProjectState.selectedVertexIndex = -1;
             }
             repaint();
         } catch (IOException ex) {
@@ -5211,7 +5497,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
 
     public Color getColorById(int id)
     {
-        for (MaskedObject p : polygons)
+        for (MaskedObject p : currentProjectState.polygons)
         {
             if (p.id == id)
             {
@@ -5225,21 +5511,21 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
     private void validateDraggingAdjacentObject(int x, int y)
     {
         // Check if they're trying to click along a border of another polygon
-        if (selectedPolygon != null)
+        if (currentProjectState.selectedPolygon != null)
         {
-            adjacentPolygonVertex = -1;
-            adjacentPolygon = null;
-            for (MaskedObject p : polygons)
+            currentProjectState.adjacentPolygonVertex = -1;
+            currentProjectState.adjacentPolygon = null;
+            for (MaskedObject p : currentProjectState.polygons)
             {
-                if (p == selectedPolygon)
+                if (p == currentProjectState.selectedPolygon)
                 {
                     continue;
                 }
                 int possible_index = clickNearVertexOfPolygon(p.polygon,x,y);
                 if (possible_index != -1)
                 {
-                    adjacentPolygon = p;
-                    adjacentPolygonVertex = possible_index;
+                    currentProjectState.adjacentPolygon = p;
+                    currentProjectState.adjacentPolygonVertex = possible_index;
                     break;
                 }
             }
@@ -5250,21 +5536,21 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
     private void validateHoveringAdjacentObject(int x, int y)
     {
         // Check if they're trying to click along a border of another polygon
-        if (selectedPolygon != null && hoverVertexIndex == -1)
+        if (currentProjectState.selectedPolygon != null && currentProjectState.hoverVertexIndex == -1)
         {
-            adjacentPolygonVertex = -1;
-            adjacentPolygon = null;
-            for (MaskedObject p : polygons)
+            currentProjectState.adjacentPolygonVertex = -1;
+            currentProjectState.adjacentPolygon = null;
+            for (MaskedObject p : currentProjectState.polygons)
             {
-                if (p == selectedPolygon)
+                if (p == currentProjectState.selectedPolygon)
                 {
                     continue;
                 }
                 int possible_index = clickNearVertexOfPolygon(p.polygon,x,y);
                 if (possible_index != -1)
                 {
-                    adjacentPolygon = p;
-                    adjacentPolygonVertex = possible_index;
+                    currentProjectState.adjacentPolygon = p;
+                    currentProjectState.adjacentPolygonVertex = possible_index;
                     break;
                 }
             }
@@ -5275,7 +5561,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
     private ArrayList<MaskedObject> getAllContainingObjects(int x, int y)
     {
         ArrayList<MaskedObject> PolygonsThatContainPoint = new ArrayList();
-        for (MaskedObject p : polygons)
+        for (MaskedObject p : currentProjectState.polygons)
         {
             if (p.polygon.contains(x,y))
             {
@@ -5330,15 +5616,16 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
     }
 
     private int clickNearVertex(int x, int y) {
-        if (selectedPolygon == null)
+        if (currentProjectState.selectedPolygon == null)
         {
             return -1;
         }
         double minDistance = 100;
         int minIndex = -1;
-        for (int i = 0; i < selectedPolygon.polygon.npoints; i++)
+        for (int i = 0; i < currentProjectState.selectedPolygon.polygon.npoints; i++)
         {
-            double distance = Math.hypot(selectedPolygon.polygon.xpoints[i]-x, selectedPolygon.polygon.ypoints[i]-y);
+            double distance = Math.hypot(currentProjectState.selectedPolygon.polygon.xpoints[i]-x,
+                    currentProjectState.selectedPolygon.polygon.ypoints[i]-y);
             if (distance <= 20.0/scale )
             {
                 if (distance < minDistance)
@@ -5391,20 +5678,20 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
             MaskedObject clickedObject = pointIsContainedByObject(click.x, click.y);
             if (clickedObject != null)
             {
-                selectedPolygon = clickedObject;
+                currentProjectState.selectedPolygon = clickedObject;
                 int x = clickedObject.polygon.xpoints[clickedObject.polygon.npoints-1];
                 int y = clickedObject.polygon.ypoints[clickedObject.polygon.npoints-1];
                 //selectedVertex = new Point(x,y);
-                selectedVertexIndex = clickedObject.polygon.npoints-1;
+                currentProjectState.selectedVertexIndex = clickedObject.polygon.npoints-1;
                 //colorChooser.setSelectedColor(selectedPolygon.color);
-                hsvColorChooser.setSelectedColor(selectedPolygon.color);
+                hsvColorChooser.setSelectedColor(currentProjectState.selectedPolygon.color);
                 hsvColorChooser.depthField.setText(clickedObject.depth+"");
             }
             else
             {
-                selectedVertexIndex = -1;
+                currentProjectState.selectedVertexIndex = -1;
                 //selectedVertex = null;
-                selectedPolygon = null;
+                currentProjectState.selectedPolygon = null;
                 hsvColorChooser.setSelectedColor(Color.white);
                 hsvColorChooser.depthField.setText("0");
             }
@@ -5415,32 +5702,33 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
             int index = clickNearVertex(click.x, click.y);
             if (index != -1)
             {
-                int x = selectedPolygon.polygon.xpoints[index];
-                int y = selectedPolygon.polygon.ypoints[index];
+                int x = currentProjectState.selectedPolygon.polygon.xpoints[index];
+                int y = currentProjectState.selectedPolygon.polygon.ypoints[index];
                 //selectedVertex = new Point(x,y);
-                selectedVertexIndex = index;
+                currentProjectState.selectedVertexIndex = index;
                 cycleToSelected();
             }
             else
             {
-                if (selectedPolygon == null)
+                if (currentProjectState.selectedPolygon == null)
                 {
-                    selectedPolygon = new MaskedObject();
-                    selectedPolygon.id = ++currentObjectID;
-                    polygons.add(selectedPolygon);
+                    currentProjectState.selectedPolygon = new MaskedObject();
+                    currentProjectState.selectedPolygon.id = ++currentObjectID;
+                    currentProjectState.polygons.add(currentProjectState.selectedPolygon);
                 }
-                if (adjacentPolygon != null && adjacentPolygonVertex != -1)
+                if (currentProjectState.adjacentPolygon != null && currentProjectState.adjacentPolygonVertex != -1)
                 {
-                    selectedPolygon.polygon.addPoint(adjacentPolygon.polygon.xpoints[adjacentPolygonVertex],
-                            adjacentPolygon.polygon.ypoints[adjacentPolygonVertex]);
+                    currentProjectState.selectedPolygon.polygon.addPoint(
+                            currentProjectState.adjacentPolygon.polygon.xpoints[currentProjectState.adjacentPolygonVertex],
+                            currentProjectState.adjacentPolygon.polygon.ypoints[currentProjectState.adjacentPolygonVertex]);
                     
                 }
                 else
                 {
-                    selectedPolygon.polygon.addPoint(click.x, click.y);
+                    currentProjectState.selectedPolygon.polygon.addPoint(click.x, click.y);
                     //selectedVertex = new Point(e.getX(), e.getY());
                 }
-                selectedVertexIndex = selectedPolygon.polygon.npoints-1;
+                currentProjectState.selectedVertexIndex = currentProjectState.selectedPolygon.polygon.npoints-1;
                 
                 
                 
@@ -5471,22 +5759,22 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
 
     public void cycleToSelected()
     {
-        int numPoints = selectedPolygon.polygon.npoints;
-        while (selectedVertexIndex != numPoints - 1)
+        int numPoints = currentProjectState.selectedPolygon.polygon.npoints;
+        while (currentProjectState.selectedVertexIndex != numPoints - 1)
         {
-            int tempX = selectedPolygon.polygon.xpoints[numPoints-1];
-            int tempY = selectedPolygon.polygon.ypoints[numPoints-1];
+            int tempX = currentProjectState.selectedPolygon.polygon.xpoints[numPoints-1];
+            int tempY = currentProjectState.selectedPolygon.polygon.ypoints[numPoints-1];
             for (int i = numPoints-2; i >= 0; i--)
             {
-                selectedPolygon.polygon.xpoints[i+1] = selectedPolygon.polygon.xpoints[i];
-                selectedPolygon.polygon.ypoints[i+1] = selectedPolygon.polygon.ypoints[i];
+                currentProjectState.selectedPolygon.polygon.xpoints[i+1] = currentProjectState.selectedPolygon.polygon.xpoints[i];
+                currentProjectState.selectedPolygon.polygon.ypoints[i+1] = currentProjectState.selectedPolygon.polygon.ypoints[i];
             }
-            selectedPolygon.polygon.xpoints[0] = tempX;
-            selectedPolygon.polygon.ypoints[0] = tempY;
-            selectedVertexIndex++;
+            currentProjectState.selectedPolygon.polygon.xpoints[0] = tempX;
+            currentProjectState.selectedPolygon.polygon.ypoints[0] = tempY;
+            currentProjectState.selectedVertexIndex++;
         }
-        hoverVertexIndex = -1;
-        selectedPolygon.polygon.invalidate();
+        currentProjectState.hoverVertexIndex = -1;
+        currentProjectState.selectedPolygon.polygon.invalidate();
         repaint();
     }
     
@@ -5503,25 +5791,25 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                 toolList.getSelectedItem().equals("Drag Select Vertices"))
         {
             DragDown = convertClick(e);
-            selectedObjects.clear();
-            selectedVertices.clear();
+            currentProjectState.selectedObjects.clear();
+            currentProjectState.selectedVertices.clear();
             
         }
         else if (toolList.getSelectedItem().equals("Pen Tool"))
         {
             dragCounter = 0;
             Click start = convertClick(e);
-            selectedPolygon = new MaskedObject();
-            selectedPolygon.polygon.addPoint(start.x, start.y);
-            selectedVertexIndex = 0;
-            polygons.add(selectedPolygon);
+            currentProjectState.selectedPolygon = new MaskedObject();
+            currentProjectState.selectedPolygon.polygon.addPoint(start.x, start.y);
+            currentProjectState.selectedVertexIndex = 0;
+            currentProjectState.polygons.add(currentProjectState.selectedPolygon);
             repaint();
         }
         else
         {
-            if (hoverVertexIndex != -1)
+            if (currentProjectState.hoverVertexIndex != -1)
             {
-                selectedVertexIndex = hoverVertexIndex;
+                currentProjectState.selectedVertexIndex = currentProjectState.hoverVertexIndex;
                 currentlyDragging = true;
             }
         }
@@ -5532,14 +5820,14 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         int width = DragUp.x - DragDown.x;
         int height = DragUp.y - DragDown.y;
         Rectangle rect = new Rectangle(DragDown.x, DragDown.y, width, height);
-        for (MaskedObject p : polygons)
+        for (MaskedObject p : currentProjectState.polygons)
         {
             for (int i = 0; i < p.polygon.npoints; i++)
             {
                 Point p2 = new Point(p.polygon.xpoints[i], p.polygon.ypoints[i]);
                 if (rect.contains(p2.x,p2.y))
                 {
-                    selectedObjects.add(p);
+                    currentProjectState.selectedObjects.add(p);
                     break;
                 }
             }
@@ -5551,7 +5839,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         int width = DragUp.x - DragDown.x;
         int height = DragUp.y - DragDown.y;
         Rectangle rect = new Rectangle(DragDown.x, DragDown.y, width, height);
-        for (MaskedObject p : polygons)
+        for (MaskedObject p : currentProjectState.polygons)
         {
             ArrayList<Integer> vertexList = new ArrayList();
 
@@ -5560,16 +5848,16 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                 Point p2 = new Point(p.polygon.xpoints[i], p.polygon.ypoints[i]);
                 if (rect.contains(p2.x,p2.y))
                 {
-                    if (!selectedObjects.contains(p))
+                    if (!currentProjectState.selectedObjects.contains(p))
                     {
-                        selectedObjects.add(p);
+                        currentProjectState.selectedObjects.add(p);
                     }
                     vertexList.add(i);
                 }
             }
             if (vertexList.size() > 0)
             {
-                selectedVertices.add(vertexList);
+                currentProjectState.selectedVertices.add(vertexList);
             }
         }
     }
@@ -5638,17 +5926,17 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         }
        Click click = convertClick(e);
        
-        int oldHover = hoverVertexIndex;
-        hoverVertexIndex = clickNearVertex(click.x,click.y);
+        int oldHover = currentProjectState.hoverVertexIndex;
+        currentProjectState.hoverVertexIndex = clickNearVertex(click.x,click.y);
         
-        if (oldHover != hoverVertexIndex)
+        if (oldHover != currentProjectState.hoverVertexIndex)
         {
             repaint();
         }
         
-        int oldHoverAdjacent = adjacentPolygonVertex;
+        int oldHoverAdjacent = currentProjectState.adjacentPolygonVertex;
         validateHoveringAdjacentObject(click.x,click.y);
-        if (oldHoverAdjacent != adjacentPolygonVertex)
+        if (oldHoverAdjacent != currentProjectState.adjacentPolygonVertex)
         {
             repaint();
         }
@@ -5662,7 +5950,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         {
             if (dragCounter % drawPrecision == 0)
             {
-                selectedPolygon.polygon.addPoint(click.x, click.y);
+                currentProjectState.selectedPolygon.polygon.addPoint(click.x, click.y);
             }
             dragCounter++;
             repaint();
@@ -5670,19 +5958,21 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         else if (currentlyDragging)
         {     
             validateDraggingAdjacentObject(click.x,click.y);
-            if (adjacentPolygonVertex != -1)
+            if (currentProjectState.adjacentPolygonVertex != -1)
             {               
-                selectedPolygon.polygon.xpoints[selectedVertexIndex] = adjacentPolygon.polygon.xpoints[adjacentPolygonVertex];
-                selectedPolygon.polygon.ypoints[selectedVertexIndex] = adjacentPolygon.polygon.ypoints[adjacentPolygonVertex];
+                currentProjectState.selectedPolygon.polygon.xpoints[currentProjectState.selectedVertexIndex]
+                        = currentProjectState.adjacentPolygon.polygon.xpoints[currentProjectState.adjacentPolygonVertex];
+                currentProjectState.selectedPolygon.polygon.ypoints[currentProjectState.selectedVertexIndex]
+                        = currentProjectState.adjacentPolygon.polygon.ypoints[currentProjectState.adjacentPolygonVertex];
             }
             else
             {
-                selectedPolygon.polygon.xpoints[selectedVertexIndex] = click.x;
-                selectedPolygon.polygon.ypoints[selectedVertexIndex] = click.y;
+                currentProjectState.selectedPolygon.polygon.xpoints[currentProjectState.selectedVertexIndex] = click.x;
+                currentProjectState.selectedPolygon.polygon.ypoints[currentProjectState.selectedVertexIndex] = click.y;
             }
             // This code below fixes the problem of the points being directly 
             // manipulated and the bounding box not updated
-            selectedPolygon.polygon.invalidate();
+            currentProjectState.selectedPolygon.polygon.invalidate();
         }
         // int oldHoverAdjacent = adjacentPolygonVertex;
         //if (oldHoverAdjacent != adjacentPolygonVertex)
@@ -5875,11 +6165,6 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
     @Override
     public void keyPressed(KeyEvent e) {
         
-
-        if (e.isControlDown() && e.getKeyChar() != 'a' && e.getKeyCode() == 65) 
-        {
-            System.out.println("Select All"); 
-        }
         if (e.getKeyCode() == KeyEvent.VK_EQUALS)
         {
             // zoom in
@@ -5938,9 +6223,9 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         
         if (e.getKeyCode() == KeyEvent.VK_W)
         {
-            if (!selectedObjects.isEmpty() && toolList.getSelectedItem().equals("Drag Select Objects"))
+            if (!currentProjectState.selectedObjects.isEmpty() && toolList.getSelectedItem().equals("Drag Select Objects"))
             {
-                for (MaskedObject p : selectedObjects)
+                for (MaskedObject p : currentProjectState.selectedObjects)
                 {
                     for (int i = 0; i < p.polygon.npoints; i++)
                     {
@@ -5949,25 +6234,25 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                     p.polygon.invalidate();
                 }
             }
-            else if (!selectedObjects.isEmpty() && toolList.getSelectedItem().equals("Drag Select Vertices"))
+            else if (!currentProjectState.selectedObjects.isEmpty() && toolList.getSelectedItem().equals("Drag Select Vertices"))
             {
-                for (int i = 0; i < selectedVertices.size(); i++)
+                for (int i = 0; i < currentProjectState.selectedVertices.size(); i++)
                 {
-                    ArrayList<Integer> vertList = selectedVertices.get(i);
-                    Polygon p = selectedObjects.get(i).polygon;
-                    for (int j = 0; j < selectedVertices.get(i).size(); j++)
+                    ArrayList<Integer> vertList = currentProjectState.selectedVertices.get(i);
+                    Polygon p = currentProjectState.selectedObjects.get(i).polygon;
+                    for (int j = 0; j < currentProjectState.selectedVertices.get(i).size(); j++)
                     {
                         p.ypoints[vertList.get(j)]--;
                     }
                     p.invalidate();
                 }
             }
-            else if (selectedPolygon != null)
+            else if (currentProjectState.selectedPolygon != null)
             {
                 //System.out.println("Pressed UP");
-                selectedPolygon.polygon.ypoints[selectedVertexIndex]--;
+                currentProjectState.selectedPolygon.polygon.ypoints[currentProjectState.selectedVertexIndex]--;
                 //selectedVertex.y = selectedPolygon.ypoints[selectedVertexIndex];
-                selectedPolygon.polygon.invalidate();
+                currentProjectState.selectedPolygon.polygon.invalidate();
             }
             
             repaint();
@@ -5976,9 +6261,9 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         if (e.getKeyCode() == KeyEvent.VK_S)
         {
             
-            if (!selectedObjects.isEmpty() && toolList.getSelectedItem().equals("Drag Select Objects"))
+            if (!currentProjectState.selectedObjects.isEmpty() && toolList.getSelectedItem().equals("Drag Select Objects"))
             {
-                for (MaskedObject p : selectedObjects)
+                for (MaskedObject p : currentProjectState.selectedObjects)
                 {
                     for (int i = 0; i < p.polygon.npoints; i++)
                     {
@@ -5987,25 +6272,25 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                     p.polygon.invalidate();
                 }
             }
-            else if (!selectedObjects.isEmpty() && toolList.getSelectedItem().equals("Drag Select Vertices"))
+            else if (!currentProjectState.selectedObjects.isEmpty() && toolList.getSelectedItem().equals("Drag Select Vertices"))
             {
-                for (int i = 0; i < selectedVertices.size(); i++)
+                for (int i = 0; i < currentProjectState.selectedVertices.size(); i++)
                 {
-                    ArrayList<Integer> vertList = selectedVertices.get(i);
-                    Polygon p = selectedObjects.get(i).polygon;
-                    for (int j = 0; j < selectedVertices.get(i).size(); j++)
+                    ArrayList<Integer> vertList = currentProjectState.selectedVertices.get(i);
+                    Polygon p = currentProjectState.selectedObjects.get(i).polygon;
+                    for (int j = 0; j < currentProjectState.selectedVertices.get(i).size(); j++)
                     {
                         p.ypoints[vertList.get(j)]++;
                     }
                     p.invalidate();
                 }
             }
-            else if (selectedPolygon != null)
+            else if (currentProjectState.selectedPolygon != null)
             {
                 //System.out.println("Pressed DOWN");
-                selectedPolygon.polygon.ypoints[selectedVertexIndex]++;
+                currentProjectState.selectedPolygon.polygon.ypoints[currentProjectState.selectedVertexIndex]++;
                 //selectedVertex.y = selectedPolygon.ypoints[selectedVertexIndex];
-                selectedPolygon.polygon.invalidate();
+                currentProjectState.selectedPolygon.polygon.invalidate();
             }
             
             repaint();
@@ -6014,9 +6299,9 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         if (e.getKeyCode() == KeyEvent.VK_D)
         {
             
-            if (!selectedObjects.isEmpty() && toolList.getSelectedItem().equals("Drag Select Objects"))
+            if (!currentProjectState.selectedObjects.isEmpty() && toolList.getSelectedItem().equals("Drag Select Objects"))
             {
-                for (MaskedObject p : selectedObjects)
+                for (MaskedObject p : currentProjectState.selectedObjects)
                 {
                     for (int i = 0; i < p.polygon.npoints; i++)
                     {
@@ -6025,25 +6310,25 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                     p.polygon.invalidate();
                 }
             }
-            else if (!selectedObjects.isEmpty() && toolList.getSelectedItem().equals("Drag Select Vertices"))
+            else if (!currentProjectState.selectedObjects.isEmpty() && toolList.getSelectedItem().equals("Drag Select Vertices"))
             {
-                for (int i = 0; i < selectedVertices.size(); i++)
+                for (int i = 0; i < currentProjectState.selectedVertices.size(); i++)
                 {
-                    ArrayList<Integer> vertList = selectedVertices.get(i);
-                    Polygon p = selectedObjects.get(i).polygon;
-                    for (int j = 0; j < selectedVertices.get(i).size(); j++)
+                    ArrayList<Integer> vertList = currentProjectState.selectedVertices.get(i);
+                    Polygon p = currentProjectState.selectedObjects.get(i).polygon;
+                    for (int j = 0; j < currentProjectState.selectedVertices.get(i).size(); j++)
                     {
                         p.xpoints[vertList.get(j)]++;
                     }
                     p.invalidate();
                 }
             }
-            else if (selectedPolygon != null)
+            else if (currentProjectState.selectedPolygon != null)
             {
                 //System.out.println("Pressed RIGHT");
-                selectedPolygon.polygon.xpoints[selectedVertexIndex]++;
+                currentProjectState.selectedPolygon.polygon.xpoints[currentProjectState.selectedVertexIndex]++;
                 //selectedVertex.x = selectedPolygon.xpoints[selectedVertexIndex];
-                selectedPolygon.polygon.invalidate();
+                currentProjectState.selectedPolygon.polygon.invalidate();
             }
             
             repaint();
@@ -6052,9 +6337,9 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         if (e.getKeyCode() == KeyEvent.VK_A)
         {
             
-            if (!selectedObjects.isEmpty() && toolList.getSelectedItem().equals("Drag Select Objects"))
+            if (!currentProjectState.selectedObjects.isEmpty() && toolList.getSelectedItem().equals("Drag Select Objects"))
             {
-                for (MaskedObject p : selectedObjects)
+                for (MaskedObject p : currentProjectState.selectedObjects)
                 {
                     for (int i = 0; i < p.polygon.npoints; i++)
                     {
@@ -6063,25 +6348,25 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                     p.polygon.invalidate();
                 }
             }
-            else if (!selectedObjects.isEmpty() && toolList.getSelectedItem().equals("Drag Select Vertices"))
+            else if (!currentProjectState.selectedObjects.isEmpty() && toolList.getSelectedItem().equals("Drag Select Vertices"))
             {
-                for (int i = 0; i < selectedVertices.size(); i++)
+                for (int i = 0; i < currentProjectState.selectedVertices.size(); i++)
                 {
-                    ArrayList<Integer> vertList = selectedVertices.get(i);
-                    Polygon p = selectedObjects.get(i).polygon;
-                    for (int j = 0; j < selectedVertices.get(i).size(); j++)
+                    ArrayList<Integer> vertList = currentProjectState.selectedVertices.get(i);
+                    Polygon p = currentProjectState.selectedObjects.get(i).polygon;
+                    for (int j = 0; j < currentProjectState.selectedVertices.get(i).size(); j++)
                     {
                         p.xpoints[vertList.get(j)]--;
                     }
                     p.invalidate();
                 }
             }
-            else if (selectedPolygon != null)
+            else if (currentProjectState.selectedPolygon != null)
             {
                 //System.out.println("Pressed LEFT");
-                selectedPolygon.polygon.xpoints[selectedVertexIndex]--;
+                currentProjectState.selectedPolygon.polygon.xpoints[currentProjectState.selectedVertexIndex]--;
                 //selectedVertex.x = selectedPolygon.xpoints[selectedVertexIndex];
-                selectedPolygon.polygon.invalidate();
+                currentProjectState.selectedPolygon.polygon.invalidate();
             }
             
             repaint();
@@ -6090,30 +6375,30 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         if (e.getKeyCode() == KeyEvent.VK_BACK_SPACE)
         {
             System.out.println("Pressed Delete");
-            if (selectedPolygon.polygon.npoints == 1)
+            if (currentProjectState.selectedPolygon.polygon.npoints == 1)
             {
-                polygons.remove(selectedPolygon);
-                selectedPolygon = null;
-                selectedVertexIndex = -1;
+                currentProjectState.polygons.remove(currentProjectState.selectedPolygon);
+                currentProjectState.selectedPolygon = null;
+                currentProjectState.selectedVertexIndex = -1;
                 repaint();
                 return;
             }
-            if (selectedPolygon == null)
+            if (currentProjectState.selectedPolygon == null)
             {
                 return;
             }
-            for (int i = selectedVertexIndex+1; i < selectedPolygon.polygon.npoints; i++)
+            for (int i = currentProjectState.selectedVertexIndex+1; i < currentProjectState.selectedPolygon.polygon.npoints; i++)
             {
-                selectedPolygon.polygon.xpoints[i-1] = selectedPolygon.polygon.xpoints[i];
-                selectedPolygon.polygon.ypoints[i-1] = selectedPolygon.polygon.ypoints[i];
+                currentProjectState.selectedPolygon.polygon.xpoints[i-1] = currentProjectState.selectedPolygon.polygon.xpoints[i];
+                currentProjectState.selectedPolygon.polygon.ypoints[i-1] = currentProjectState.selectedPolygon.polygon.ypoints[i];
             }
-            selectedPolygon.polygon.npoints--;
+            currentProjectState.selectedPolygon.polygon.npoints--;
 
-            if (selectedPolygon.polygon.npoints-1 < selectedVertexIndex)
+            if (currentProjectState.selectedPolygon.polygon.npoints-1 < currentProjectState.selectedVertexIndex)
             {
-                selectedVertexIndex--;
+                currentProjectState.selectedVertexIndex--;
             }
-            selectedPolygon.polygon.invalidate();
+            currentProjectState.selectedPolygon.polygon.invalidate();
             
             repaint();
         }
@@ -6127,10 +6412,10 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
     }
 
     private void recolorSelectedPolygons() {
-        for (MaskedObject p : selectedObjects)
+        for (MaskedObject p : currentProjectState.selectedObjects)
         {
-            selectedPolygon = p;
-            selectedVertexIndex = 0;
+            currentProjectState.selectedPolygon = p;
+            currentProjectState.selectedVertexIndex = 0;
             colorizePolygon(p.color);
         }
         repaint();
@@ -6374,4 +6659,17 @@ class MaskedObject
 class Click {
     int x;
     int y;
+}
+
+class ProjectState {
+    
+    ArrayList<MaskedObject> polygons;
+    MaskedObject selectedPolygon;
+    int selectedVertexIndex = -1;
+    int hoverVertexIndex = -1;
+    MaskedObject adjacentPolygon;
+    int adjacentPolygonVertex = -1;
+    ArrayList<MaskedObject> selectedObjects = new ArrayList();
+    ArrayList<ArrayList<Integer>> selectedVertices = new ArrayList();
+    
 }

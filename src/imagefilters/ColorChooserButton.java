@@ -10,9 +10,6 @@ import java.util.List;
 
 import javax.swing.ImageIcon;
 import javax.swing.JButton;
-import javax.swing.JColorChooser;
-import javax.swing.event.ChangeEvent;
-import javax.swing.event.ChangeListener;
 
 public class ColorChooserButton extends JButton {
 
@@ -28,9 +25,9 @@ public class ColorChooserButton extends JButton {
             public void actionPerformed(ActionEvent arg0) {
                 DemoColorChooser dcc = new DemoColorChooser(imgFilters);
                 Color newColor = dcc.chooser.getColor();
-                if (imgFilters.selectedPolygon != null)
+                if (imgFilters.currentProjectState.selectedPolygon != null)
                 {
-                    newColor = imgFilters.selectedPolygon.color;
+                    newColor = imgFilters.currentProjectState.selectedPolygon.color;
                 }
                 setSelectedColor(newColor);
                 imgFilters.colorizePolygon(newColor);
