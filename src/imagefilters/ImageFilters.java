@@ -159,7 +159,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
     JButton trackMotionButton = new JButton("Track Motion");
     JButton findEdgesButton = new JButton("Find Edges");
     JButton colorLayersButton = new JButton("Color By Layers");
-    int drawPrecision = 10;
+    int drawPrecision = 2;
     int dragCounter = 0;
     
     JTextField filenameTextBox = new JTextField(10);
@@ -614,6 +614,56 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         return false;
     }
     
+    private float getHueVariationRandom()
+    {
+        int hue_var = (int)(hsvColorChooser.hue_variation_spinner.getValue());
+        hue_var = (int)(Math.random() * hue_var);
+        if (Math.random() < .5)
+        {
+            hue_var *= -1;
+        }
+        float scaled = hue_var/360.0f;
+        return scaled;
+    }
+    
+    private float getSatVariationRandom()
+    {
+        int sat_var = (int)(hsvColorChooser.sat_variation_spinner.getValue());
+        sat_var = (int)(Math.random() * sat_var);
+        if (Math.random() < .5)
+        {
+            sat_var *= -1;
+        }
+        float scaled = sat_var/100.0f;
+        return scaled;
+    }
+    
+    private float getHueVariationFromIntensity(int intensity)
+    {
+        int hue_var = (int)(hsvColorChooser.hue_variation_spinner.getValue());
+        if (hue_var == 0) return hue_var;
+        int halfway = 128;
+        int difference = intensity - halfway;
+        float percentageOfMaxVariation = difference/128.0f;
+        if (percentageOfMaxVariation > 1) percentageOfMaxVariation = 1;
+        if (percentageOfMaxVariation < -1) percentageOfMaxVariation = -1;
+        float variation = 1.0f * (percentageOfMaxVariation * hue_var);
+        return variation/360;
+    }
+    
+    private float getSatVariationFromIntensity(int intensity)
+    {
+        int sat_var = (int)(hsvColorChooser.sat_variation_spinner.getValue());
+        if (sat_var == 0) return sat_var;
+        int halfway = 128;
+        int difference = intensity - halfway;
+        float percentageOfMaxVariation = difference/128.0f;
+        if (percentageOfMaxVariation > 1) percentageOfMaxVariation = 1;
+        if (percentageOfMaxVariation < -1) percentageOfMaxVariation = -1;
+        float variation = -1 * (1.0f * (percentageOfMaxVariation * sat_var));
+        return variation/100;
+    }
+    
     public void colorPixel(int column, int row, Color color_picked)
     {
         float[] hsbInput = new float[3];
@@ -633,6 +683,14 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         float h = hsb[0];
         float s = hsb[1];
         float b = hsb[2];
+        
+        inputHue = hsbInput[0] + getHueVariationFromIntensity(average);
+        inputSaturation = hsbInput[1] + getSatVariationFromIntensity(average);
+        if (inputSaturation < 0) inputSaturation = 0;
+        if (inputSaturation > 1) inputSaturation = 1;
+        if (inputHue < 0) inputHue += 1; // Unlike saturation, hue can wrap from 
+        if (inputHue > 1) inputHue -= 1; // pink/red to red/orange and vice versa
+        
         //System.out.print(hsv[0] + " ");
         b *= 1.245;
         if (b > 1) b = 1;
@@ -922,10 +980,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                     }
                     continue;
                 }
-                if (containingObjects.size() > 1)
-                {
-                    System.out.println("hi");
-                }
+                
                 double highestDepth = containingObjects.get(0).depth;
                 Color winningColor = containingObjects.get(0).color;
                 for (MaskedObject p : containingObjects)
@@ -2660,36 +2715,52 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         
     }
     
-    public double getIntelligentFingerprintY(BufferedImage bi, int x, int y)
+    public double getIntelligentFingerprintY(ConvolveRegionMap map, int radius, BufferedImage bi, int x, int y)
     {
-        int radius = 3;
         double numerator = 0;
         double totalValue = 0;
-        for (int i = -radius; i < radius; i++)
+        for (int i = -radius; i <= radius; i++)
         {
-            for (int j = -radius; j < radius; j++)
+            if (y+i < 0) continue;
+            if (y+i > image_pixels.getHeight()-1) continue;
+            for (int j = -radius; j <= radius; j++)
             {
-                Pixel pixel = getPixel(x+j,y+i,bi);
-                numerator += (pixel.getAverage()*i);
-                totalValue += pixel.getAverage();
+                if (x+j < 0) continue;
+                if (x+j > image_pixels.getWidth()-1) continue;
+                if (map.maskMap[i+radius][j+radius] == 1)
+                {
+                    Pixel pixel = getPixel(x+j,y+i,bi);
+                    numerator += (pixel.getAverage()*i);
+                    totalValue += pixel.getAverage();
+                }
             }
         }
         return numerator / totalValue;
     }
     
     
-    public double getIntelligentFingerprintX(BufferedImage bi, int x, int y)
+    public double getIntelligentFingerprintX(ConvolveRegionMap map, int radius, BufferedImage bi, int x, int y)
     {
-        int radius = 3;
         double numerator = 0;
         double totalValue = 0;
-        for (int i = -radius; i < radius; i++)
+        for (int i = -radius; i <= radius; i++)
         {
-            for (int j = -radius; j < radius; j++)
+            if (y+i < 0) continue;
+            if (y+i > image_pixels.getHeight()-1) continue;
+            for (int j = -radius; j <= radius; j++)
             {
-                Pixel pixel = getPixel(x+j,y+i,bi);
-                numerator += (pixel.getAverage()*j);
-                totalValue += pixel.getAverage();
+                if (x+j < 0) continue;
+                if (x+j > image_pixels.getWidth()-1) continue;
+                if (map.maskMap[i+radius][j+radius] == 1)
+                {
+                    Pixel pixel = getPixel(x+j,y+i,bi);
+                    numerator += (pixel.getAverage()*j);
+                    totalValue += pixel.getAverage();
+                }
+                else
+                {
+                    System.out.println("not in polygon");
+                }
             }
         }
         return numerator / totalValue;
@@ -2712,6 +2783,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
     
     public double getContrastFromSides(BufferedImage bi, int x, int y, int polygonIndex, int vertexIndex)
     {
+        if (x < 3 || y < 3 || x > bi.getWidth() - 4 || y > bi.getHeight() - 4) return .01;
         MaskedObject poly = currentProjectState.polygons.get(polygonIndex);
         int prevPointIndex = ((vertexIndex+poly.polygon.npoints)-1)%poly.polygon.npoints;
         int nextPointIndex = (vertexIndex+1)%poly.polygon.npoints;
@@ -3005,11 +3077,46 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         return copy;
     }
     
+    public double getAreaAverage(BufferedImage bi, int x, int y)
+    {
+        int searchRadius = 3;
+        if (x < 0 || y < 0 || x > bi.getWidth()-1 || y > bi.getHeight()-1)
+        {
+            return -1;
+        }
+        double total = 0;
+        double numPixels = ((searchRadius*2.0)+1.0)*((searchRadius*2.0)+1.0);
+        
+        for (int i = -searchRadius; i < searchRadius; i++)
+        {
+            if (y+i < 0 || y+i > bi.getHeight()-1)
+            {
+                numPixels -= ((searchRadius*2.0)+1.0);
+                continue;
+            }
+            for (int j = -searchRadius; j < searchRadius; j++)
+            {
+                if (x+j < 0 || x+j > bi.getWidth()-1)
+                {
+                    numPixels -= 1;
+                    continue;
+                }
+                int value = getPixel(x+j,y+i,bi).getAverage();
+                total += (value +0.0);
+            }
+        }
+        return total / numPixels;
+    }
+    
+    
+    
     public void trackMotionFromPreviousFrame()
     {
+        double similarityThreshold = 10;
         addCurrentStatusToEditHistory();
+        int fingerprintRadius = 3;
         int searchRadius = 16;
-        searchRadius /= scale;
+        //searchRadius /= scale;
         int tweakableScalar = 0;
         if (currentProjectState.selectedPolygon == null)
         {
@@ -3024,35 +3131,58 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
             MaskedObject prevPolygon = prevFrameObjects.get(prevFramePolygonIndex);
             BufferedImage previousImg = ImageIO.read(prevImageFile);
             for (int i = 0; i < prevPolygon.polygon.npoints; i++)
-            {
+            {     
                 int vertIndex = i;
                 int prevX = prevPolygon.polygon.xpoints[vertIndex];
                 int prevY = prevPolygon.polygon.ypoints[vertIndex];
-                double prevFingerprintX = getIntelligentFingerprintX(previousImg,prevX,prevY);
-                double prevFingerprintY = getIntelligentFingerprintY(previousImg,prevX,prevY);
-                double currX = getIntelligentFingerprintX(image_pixels,prevX,prevY);
-                double currY = getIntelligentFingerprintY(image_pixels,prevX,prevY);
-                double mostSimilarFingerprint = Math.sqrt(Math.pow(currX - prevFingerprintX,2)+Math.pow(currY - prevFingerprintY,2));
-                int selectedPolygonIndex = getPolygonIndex(currentProjectState.selectedPolygon);
-                double contrastOnSide = getContrastFromSides(image_pixels,prevX,prevY,selectedPolygonIndex,vertIndex);
-                mostSimilarFingerprint += (tweakableScalar)*(1.0/contrastOnSide);
-                int mostSimilarX = prevX;
-                int mostSimilarY = prevY;
-                for (int j = -searchRadius; j < searchRadius; j++)
+                ConvolveRegionMap maskMap = new ConvolveRegionMap(fingerprintRadius);
+                maskMap.initMaskMap(prevPolygon,prevX,prevY);
+                double prevAreaAverage = getAreaAverage(previousImg,prevX,prevY);
+                double currAreaAverage = getAreaAverage(image_pixels,prevX,prevY);
+                int mostSimilarX;
+                int mostSimilarY;
+                if (Math.abs(prevAreaAverage-currAreaAverage) < similarityThreshold
+                        || prevAreaAverage == -1 || currAreaAverage == -1)
                 {
-                    for (int k = -searchRadius; k < searchRadius; k++)
+                    // The current position is similar enough to the value in the previous
+                    // frame so just keep it the same vertex location
+                    mostSimilarX = prevX;
+                    mostSimilarY = prevY;
+                }
+                else
+                {
+                    
+                
+                    double prevFingerprintX = getIntelligentFingerprintX(maskMap,fingerprintRadius,previousImg,prevX,prevY);
+                    double prevFingerprintY = getIntelligentFingerprintY(maskMap,fingerprintRadius,previousImg,prevX,prevY);
+                    double currX = getIntelligentFingerprintX(maskMap,fingerprintRadius,image_pixels,prevX,prevY);
+                    double currY = getIntelligentFingerprintY(maskMap,fingerprintRadius,image_pixels,prevX,prevY);
+                    double mostSimilarFingerprint = Math.sqrt(Math.pow(currX - prevFingerprintX,2)+Math.pow(currY - prevFingerprintY,2));
+                    int selectedPolygonIndex = getPolygonIndex(currentProjectState.selectedPolygon);
+                    double contrastOnSide = getContrastFromSides(image_pixels,prevX,prevY,selectedPolygonIndex,vertIndex);
+                    mostSimilarFingerprint += (tweakableScalar)*(1.0/contrastOnSide);
+                    mostSimilarX = prevX;
+                    mostSimilarY = prevY;
+                    for (int j = -searchRadius; j < searchRadius; j++)
                     {
-                        double currFingerprintX = getIntelligentFingerprintX(image_pixels,prevX+k,prevY+j);
-                        double currFingerprintY = getIntelligentFingerprintY(image_pixels,prevX+k,prevY+j);
-                        double distance = Math.sqrt(Math.pow(currFingerprintX - prevFingerprintX,2)+Math.pow(currFingerprintY - prevFingerprintY,2));
-                        contrastOnSide = getContrastFromSides(image_pixels,prevX+k,prevY+j,selectedPolygonIndex,vertIndex);
-                        distance += (tweakableScalar)*(1.0/contrastOnSide);
-                        //double difference = Math.abs(prevFingerprint - currFingerprint);
-                        if (distance < mostSimilarFingerprint)
+                        if (prevX+j < 0) continue;
+                        if (prevX+j > image_pixels.getHeight()-1) continue;
+                        for (int k = -searchRadius; k < searchRadius; k++)
                         {
-                            mostSimilarFingerprint = distance;
-                            mostSimilarX = prevX+k;
-                            mostSimilarY = prevY+j;
+                            if (prevX+k < 0) continue;
+                            if (prevX+k > image_pixels.getWidth()-1) continue;
+                            double currFingerprintX = getIntelligentFingerprintX(maskMap,fingerprintRadius,image_pixels,prevX+k,prevY+j);
+                            double currFingerprintY = getIntelligentFingerprintY(maskMap,fingerprintRadius,image_pixels,prevX+k,prevY+j);
+                            double distance = Math.sqrt(Math.pow(currFingerprintX - prevFingerprintX,2)+Math.pow(currFingerprintY - prevFingerprintY,2));
+                            contrastOnSide = getContrastFromSides(image_pixels,prevX+k,prevY+j,selectedPolygonIndex,vertIndex);
+                            distance += (tweakableScalar)*(1.0/contrastOnSide);
+                            //double difference = Math.abs(prevFingerprint - currFingerprint);
+                            if (distance < mostSimilarFingerprint)
+                            {
+                                mostSimilarFingerprint = distance;
+                                mostSimilarX = prevX+k;
+                                mostSimilarY = prevY+j;
+                            }
                         }
                     }
                 }
@@ -3091,6 +3221,9 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         
         
         System.setProperty("apple.laf.useScreenMenuBar", "true");
+        System.setProperty("com.apple.mrj.application.apple.menu.about.name", "Paul\'s Coloring Studio");
+        
+
         final ImageFilters graphic = new ImageFilters();
         graphic.currentProjectState.polygons = new ArrayList();
         graphic.ShowOutlinesCheckbox.setSelected(true);
@@ -3114,7 +3247,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
 
         graphic.frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         graphic.frame.setSize(WINDOW_WIDTH, WINDOW_HEIGHT + 100);
-        
+        graphic.frame.setTitle("Paul's Coloring Studio");
         graphic.LoadImageButton.addActionListener((ActionEvent e) -> {
             graphic.LoadImage();
             
@@ -3341,7 +3474,19 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         });
         
         graphic.trackMotionButton.addActionListener((ActionEvent e) -> {
-            graphic.trackMotionFromPreviousFrame();
+            if (graphic.currentProjectState.selectedPolygon != null)
+            {
+                graphic.trackMotionFromPreviousFrame();
+            }
+            else
+            {
+                for (MaskedObject p : graphic.currentProjectState.selectedObjects)
+                {
+                    graphic.currentProjectState.selectedPolygon = p;
+                    graphic.currentProjectState.selectedVertexIndex = 0;
+                    graphic.trackMotionFromPreviousFrame();
+                }
+            }
         });
         
         graphic.findEdgesButton.addActionListener((ActionEvent e) -> {
@@ -5790,10 +5935,11 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         if (toolList.getSelectedItem().equals("Drag Select Objects") || 
                 toolList.getSelectedItem().equals("Drag Select Vertices"))
         {
+            deselect();            
             DragDown = convertClick(e);
             currentProjectState.selectedObjects.clear();
             currentProjectState.selectedVertices.clear();
-            
+            repaint();
         }
         else if (toolList.getSelectedItem().equals("Pen Tool"))
         {
@@ -6671,5 +6817,38 @@ class ProjectState {
     int adjacentPolygonVertex = -1;
     ArrayList<MaskedObject> selectedObjects = new ArrayList();
     ArrayList<ArrayList<Integer>> selectedVertices = new ArrayList();
+    
+}
+
+class ConvolveRegionMap {
+    
+    int maskMap[][];
+    int length;
+    int centerX;
+    int centerY;
+    
+    ConvolveRegionMap(int radius)
+    {
+        this.length = (radius*2)+1;
+        maskMap = new int[this.length][this.length];
+    }
+    
+    public void initMaskMap(MaskedObject p, int centerX, int centerY)
+    {
+        for (int i = -length/2; i <= length/2; i++)
+        {
+            for (int j = -length/2; j <= length/2; j++)
+            {
+                if (p.polygon.contains(centerX + j, centerY + i))
+                {
+                    maskMap[i+length/2][j+length/2] = 1;
+                }
+                else
+                {
+                    maskMap[i+length/2][j+length/2] = 0;
+                }
+            }
+        }
+    }
     
 }

@@ -50,6 +50,10 @@ public class HSVColorChooser extends JPanel {
     JSpinner hue_spinner;
     JSpinner sat_spinner;
     JSpinner val_spinner;
+    
+    JSpinner hue_variation_spinner;
+    JSpinner sat_variation_spinner;
+    
     JSpinner video_frame_spinner;
     
     JSlider video_frame_slider;
@@ -117,7 +121,7 @@ public class HSVColorChooser extends JPanel {
         });
         
         this.imageFilters = imgFilters;
-        this.setLayout(new GridLayout(11,1));
+        this.setLayout(new GridLayout(13,1));
         
         // -----------------------
         // H S V
@@ -219,6 +223,48 @@ public class HSVColorChooser extends JPanel {
         val_panel.add(val_slider);
         val_panel.add(val_spinner);
         
+        
+        // -----------------------
+        // Hue Variation
+        // -----------------------
+        JPanel hue_variation_panel = new JPanel();
+        JLabel hue_variation_label = new JLabel("hue variation");
+        SpinnerModel hue_variation_model =
+        new SpinnerNumberModel(0, //initial value
+                               hue_min, //min
+                               hue_max, //max
+                               1);                //step
+        hue_variation_spinner = new JSpinner(hue_variation_model);
+        hue_variation_spinner.addChangeListener(new ChangeListener() {
+            @Override
+            public void stateChanged(ChangeEvent e) {
+                calculateRGB();
+                repaint();
+            }
+        });
+        hue_variation_panel.add(hue_variation_label);
+        hue_variation_panel.add(hue_variation_spinner);
+        
+        // -----------------------
+        // Saturation Variation
+        // -----------------------
+        JPanel sat_variation_panel = new JPanel();
+        JLabel sat_variation_label = new JLabel("sat variation");
+        SpinnerModel sat_variation_model =
+        new SpinnerNumberModel(0, //initial value
+                               sat_min, //min
+                               sat_max, //max
+                               1);                //step
+        sat_variation_spinner = new JSpinner(sat_variation_model);
+        sat_variation_spinner.addChangeListener(new ChangeListener() {
+            @Override
+            public void stateChanged(ChangeEvent e) {
+                calculateRGB();
+                repaint();
+            }
+        });
+        sat_variation_panel.add(sat_variation_label);
+        sat_variation_panel.add(sat_variation_spinner);
         
         // -----------------------
         // Video Frame
@@ -413,6 +459,10 @@ public class HSVColorChooser extends JPanel {
         this.add(sat_panel);
         this.add(val_panel);
         this.add(new Rectangle());
+        
+        this.add(hue_variation_panel);
+        this.add(sat_variation_panel);
+        
         this.add(new JLabel("   Video Frame"));
         this.add(video_frame_panel);
         this.add(grabFramesPanel);
