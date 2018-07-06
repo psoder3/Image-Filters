@@ -239,6 +239,8 @@ public class HSVColorChooser extends JPanel {
             @Override
             public void stateChanged(ChangeEvent e) {
                 calculateRGB();
+                imgFilters.currentProjectState.selectedPolygon.hue_variation = 
+                        (int)hue_variation_spinner.getValue();
                 repaint();
             }
         });
@@ -260,6 +262,8 @@ public class HSVColorChooser extends JPanel {
             @Override
             public void stateChanged(ChangeEvent e) {
                 calculateRGB();
+                imgFilters.currentProjectState.selectedPolygon.saturation_variation = 
+                        (int)sat_variation_spinner.getValue();
                 repaint();
             }
         });
@@ -539,7 +543,9 @@ public class HSVColorChooser extends JPanel {
         {
             Color color = getColor();
             imageFilters.currentProjectState.selectedPolygon.color = color;
-            imageFilters.colorizePolygon(color);
+            int hue_variation = imageFilters.currentProjectState.selectedPolygon.hue_variation;
+            int saturation_variation = imageFilters.currentProjectState.selectedPolygon.saturation_variation;
+            imageFilters.colorizePolygon(color,hue_variation,saturation_variation);
             imageFilters.repaint();
         }
     }

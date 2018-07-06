@@ -638,9 +638,9 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         return scaled;
     }
     
-    private float getHueVariationFromIntensity(int intensity)
+    private float getHueVariationFromIntensity(int intensity, int hue_var)
     {
-        int hue_var = (int)(hsvColorChooser.hue_variation_spinner.getValue());
+        //int hue_var = (int)(hsvColorChooser.hue_variation_spinner.getValue());
         if (hue_var == 0) return hue_var;
         int halfway = 128;
         int difference = intensity - halfway;
@@ -651,9 +651,9 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         return variation/360;
     }
     
-    private float getSatVariationFromIntensity(int intensity)
+    private float getSatVariationFromIntensity(int intensity, int sat_var)
     {
-        int sat_var = (int)(hsvColorChooser.sat_variation_spinner.getValue());
+        //int sat_var = (int)(hsvColorChooser.sat_variation_spinner.getValue());
         if (sat_var == 0) return sat_var;
         int halfway = 128;
         int difference = intensity - halfway;
@@ -664,7 +664,8 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         return variation/100;
     }
     
-    public void colorPixel(int column, int row, Color color_picked)
+    public void colorPixel(int column, int row, Color color_picked, int hue_variation,
+            int saturation_variation)
     {
         float[] hsbInput = new float[3];
         Color.RGBtoHSB(color_picked.getRed(),color_picked.getGreen(), color_picked.getBlue(), hsbInput);
@@ -684,8 +685,8 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         float s = hsb[1];
         float b = hsb[2];
         
-        inputHue = hsbInput[0] + getHueVariationFromIntensity(average);
-        inputSaturation = hsbInput[1] + getSatVariationFromIntensity(average);
+        inputHue = hsbInput[0] + getHueVariationFromIntensity(average,hue_variation);
+        inputSaturation = hsbInput[1] + getSatVariationFromIntensity(average,saturation_variation);
         if (inputSaturation < 0) inputSaturation = 0;
         if (inputSaturation > 1) inputSaturation = 1;
         if (inputHue < 0) inputHue += 1; // Unlike saturation, hue can wrap from 
@@ -898,7 +899,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
 
     }
     
-    public void colorizePolygon(Color color_picked)
+    public void colorizePolygon(Color color_picked, int hue_variation, int saturation_variation)
     {
         if (color_picked == null || currentProjectState.selectedPolygon == null)
         {
@@ -921,7 +922,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                 
                 if (containingObjects.size() == 1)
                 {
-                    colorPixel(column,row,color_picked);
+                    colorPixel(column,row,color_picked,hue_variation,saturation_variation);
                 }
                 else
                 {
@@ -937,7 +938,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                     }
                     if (topLayer)
                     {
-                        colorPixel(column,row,color_picked);
+                        colorPixel(column,row,color_picked,hue_variation,saturation_variation);
                     }
                 }
             }
@@ -976,22 +977,25 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                     }
                     else
                     {
-                        colorPixel(column,row,gray);
+                        colorPixel(column,row,gray,0,0);
                     }
                     continue;
                 }
                 
                 double highestDepth = containingObjects.get(0).depth;
                 Color winningColor = containingObjects.get(0).color;
+                MaskedObject winningObject = containingObjects.get(0);
                 for (MaskedObject p : containingObjects)
                 {
                     if (p.depth > highestDepth)
                     {
                         highestDepth = p.depth;
                         winningColor = p.color;
+                        winningObject = p;
                     }
                 }
-                colorPixel(column,row,winningColor);
+                colorPixel(column,row,winningColor,winningObject.hue_variation,
+                        winningObject.saturation_variation);
             }
             //System.out.println();
         }
@@ -3073,6 +3077,8 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         
         copy.depth = p.depth;
         copy.id = p.id;
+        copy.hue_variation = p.hue_variation;
+        copy.saturation_variation = p.saturation_variation;
         copy.polygon = new Polygon(p.polygon.xpoints,p.polygon.ypoints,p.polygon.npoints);
         return copy;
     }
@@ -3586,6 +3592,8 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                     {
                         fw.append("rgb " + p.color.getRed() + " " + p.color.getGreen() + " " + p.color.getBlue() + "\n");
                     }
+                    fw.append("hVar " + p.hue_variation + "\n");
+                    fw.append("sVar " + p.saturation_variation + "\n");
                     fw.append("depth " + p.depth + "\n");
                     fw.append(p.polygon.npoints+"\n");
                     for (int i = 0; i < p.polygon.npoints; i++)
@@ -3776,6 +3784,8 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                 {
                     fw.append("rgb " + p.color.getRed() + " " + p.color.getGreen() + " " + p.color.getBlue() + "\n");
                 }
+                fw.append("hVar " + p.hue_variation + "\n");
+                fw.append("sVar " + p.saturation_variation + "\n");
                 fw.append("depth " + p.depth + "\n");
                 fw.append(p.polygon.npoints+"\n");
                 for (int i = 0; i < p.polygon.npoints; i++)
@@ -4679,6 +4689,20 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                 int g = reader.nextInt();
                 int b = reader.nextInt();
                 poly.color = new Color(r,g,b);
+                next = reader.next();
+            }
+            
+            if (next.equals("hVar"))
+            {
+                int hueVariation = reader.nextInt();
+                poly.hue_variation = hueVariation;
+                next = reader.next();
+            }
+            
+            if (next.equals("sVar"))
+            {
+                int saturationVariation = reader.nextInt();
+                poly.saturation_variation = saturationVariation;
                 next = reader.next();
             }
             
@@ -5831,6 +5855,8 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                 //colorChooser.setSelectedColor(selectedPolygon.color);
                 hsvColorChooser.setSelectedColor(currentProjectState.selectedPolygon.color);
                 hsvColorChooser.depthField.setText(clickedObject.depth+"");
+                hsvColorChooser.hue_variation_spinner.setValue(clickedObject.hue_variation);
+                hsvColorChooser.sat_variation_spinner.setValue(clickedObject.saturation_variation);
             }
             else
             {
@@ -6562,7 +6588,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         {
             currentProjectState.selectedPolygon = p;
             currentProjectState.selectedVertexIndex = 0;
-            colorizePolygon(p.color);
+            colorizePolygon(p.color, p.hue_variation, p.saturation_variation);
         }
         repaint();
     }
@@ -6793,6 +6819,8 @@ class MaskedObject
     Color color;
     int id;
     double depth;
+    int hue_variation;
+    int saturation_variation;
     
     public MaskedObject()
     {

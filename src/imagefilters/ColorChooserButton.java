@@ -30,7 +30,7 @@ public class ColorChooserButton extends JButton {
                     newColor = imgFilters.currentProjectState.selectedPolygon.color;
                 }
                 setSelectedColor(newColor);
-                imgFilters.colorizePolygon(newColor);
+                //imgFilters.colorizePolygon(newColor);
                 imgFilters.repaint();
             }
         });
