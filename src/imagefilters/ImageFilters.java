@@ -2763,7 +2763,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                 }
                 else
                 {
-                    System.out.println("not in polygon");
+                    //System.out.println("not in polygon");
                 }
             }
         }
@@ -5857,6 +5857,9 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                 hsvColorChooser.depthField.setText(clickedObject.depth+"");
                 hsvColorChooser.hue_variation_spinner.setValue(clickedObject.hue_variation);
                 hsvColorChooser.sat_variation_spinner.setValue(clickedObject.saturation_variation);
+                hsvColorChooser.hue_var_slider.setValue(clickedObject.hue_variation);
+                hsvColorChooser.sat_var_slider.setValue(clickedObject.saturation_variation);
+                
             }
             else
             {

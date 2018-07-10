@@ -47,6 +47,16 @@ public class HSVColorChooser extends JPanel {
     int val_max = 100;
     int val_initial = 100;
     
+    JSlider hue_var_slider;
+    int hue_var_min = 0;
+    int hue_var_max = 360;
+    int hue_var_initial = 0;
+    
+    JSlider sat_var_slider;
+    int sat_var_min = 0;
+    int sat_var_max = 100;
+    int sat_var_initial = 0;
+    
     JSpinner hue_spinner;
     JSpinner sat_spinner;
     JSpinner val_spinner;
@@ -229,22 +239,35 @@ public class HSVColorChooser extends JPanel {
         // -----------------------
         JPanel hue_variation_panel = new JPanel();
         JLabel hue_variation_label = new JLabel("hue variation");
+        hue_var_slider = new JSlider(JSlider.HORIZONTAL,hue_var_min,hue_var_max,hue_var_initial);
+
         SpinnerModel hue_variation_model =
         new SpinnerNumberModel(0, //initial value
                                hue_min, //min
                                hue_max, //max
                                1);                //step
         hue_variation_spinner = new JSpinner(hue_variation_model);
+        hue_var_slider.addChangeListener(new ChangeListener() {
+            @Override
+            public void stateChanged(ChangeEvent e) {
+                hue_variation_spinner.setValue((int)(hue_var_slider.getValue()));
+                repaint();
+            }
+        });
         hue_variation_spinner.addChangeListener(new ChangeListener() {
             @Override
             public void stateChanged(ChangeEvent e) {
+                if (imgFilters.currentProjectState.selectedPolygon != null)
+                {
+                    imgFilters.currentProjectState.selectedPolygon.hue_variation = 
+                            (int)hue_variation_spinner.getValue();
+                }
                 calculateRGB();
-                imgFilters.currentProjectState.selectedPolygon.hue_variation = 
-                        (int)hue_variation_spinner.getValue();
                 repaint();
             }
         });
         hue_variation_panel.add(hue_variation_label);
+        hue_variation_panel.add(hue_var_slider);
         hue_variation_panel.add(hue_variation_spinner);
         
         // -----------------------
@@ -252,22 +275,34 @@ public class HSVColorChooser extends JPanel {
         // -----------------------
         JPanel sat_variation_panel = new JPanel();
         JLabel sat_variation_label = new JLabel("sat variation");
+        sat_var_slider = new JSlider(JSlider.HORIZONTAL,sat_var_min,sat_var_max,sat_var_initial);
         SpinnerModel sat_variation_model =
         new SpinnerNumberModel(0, //initial value
                                sat_min, //min
                                sat_max, //max
                                1);                //step
         sat_variation_spinner = new JSpinner(sat_variation_model);
-        sat_variation_spinner.addChangeListener(new ChangeListener() {
+        sat_var_slider.addChangeListener(new ChangeListener() {
             @Override
             public void stateChanged(ChangeEvent e) {
-                calculateRGB();
-                imgFilters.currentProjectState.selectedPolygon.saturation_variation = 
-                        (int)sat_variation_spinner.getValue();
+                sat_variation_spinner.setValue((int)(sat_var_slider.getValue()));
                 repaint();
             }
         });
+        sat_variation_spinner.addChangeListener(new ChangeListener() {
+            @Override
+            public void stateChanged(ChangeEvent e) {
+                if (imgFilters.currentProjectState.selectedPolygon != null)
+                {
+                    imgFilters.currentProjectState.selectedPolygon.saturation_variation = 
+                        (int)sat_variation_spinner.getValue();
+                }
+                repaint();
+                calculateRGB();
+            }
+        });
         sat_variation_panel.add(sat_variation_label);
+        sat_variation_panel.add(sat_var_slider);
         sat_variation_panel.add(sat_variation_spinner);
         
         // -----------------------
