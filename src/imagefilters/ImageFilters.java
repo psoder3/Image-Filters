@@ -830,7 +830,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         if (isEdge)
         {
             boolean lowContrastEdge = isEdgeLowContrast(column, row, 10);
-            if (lowContrastEdge && borderingObjects != null)
+            if (lowContrastEdge && borderingObjects != null && borderingObjects.size() > 1)
             {
                 Color c1 = borderingObjects.get(0).color;
                 Color c2 = borderingObjects.get(1).color;
