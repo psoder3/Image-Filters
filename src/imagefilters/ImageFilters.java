@@ -664,6 +664,18 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         return variation/100;
     }
     
+    private void getContainingObject(ArrayList<MaskedObject> borderingObjects, Pixel p)
+    {
+        for (MaskedObject mo : currentProjectState.polygons)
+        {
+            if (mo.polygon.contains(p.getPoint()))
+            {
+                borderingObjects.add(mo);
+                return;
+            }
+        }
+    }
+    
     private boolean isEdgePixel(int column, int row, ArrayList<MaskedObject> borderingObjects,
             MaskedObject containingObject)
     {
@@ -709,27 +721,65 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         {
             p8 = getPixel(column-1,row-1,image_pixels);
         }
-        if (p1 != null && !poly.contains(p1.getPoint())) return true;
-        if (p2 != null && !poly.contains(p2.getPoint())) return true;
-        if (p3 != null && !poly.contains(p3.getPoint())) return true;
-        if (p4 != null && !poly.contains(p4.getPoint())) return true;
-        if (p5 != null && !poly.contains(p5.getPoint())) return true;
-        if (p6 != null && !poly.contains(p6.getPoint())) return true;
-        if (p7 != null && !poly.contains(p7.getPoint())) return true;
-        if (p8 != null && !poly.contains(p8.getPoint())) return true;
-        
+        if (p1 != null && !poly.contains(p1.getPoint())) 
+        {
+            borderingObjects.add(containingObject);
+            getContainingObject(borderingObjects,p1);
+            return true;
+        }
+        if (p2 != null && !poly.contains(p2.getPoint())) 
+        {
+            borderingObjects.add(containingObject);
+            getContainingObject(borderingObjects,p2);
+            return true;
+        }
+        if (p3 != null && !poly.contains(p3.getPoint()))
+        {
+            borderingObjects.add(containingObject);
+            getContainingObject(borderingObjects,p3); 
+            return true;
+        }
+        if (p4 != null && !poly.contains(p4.getPoint())) 
+        {
+            borderingObjects.add(containingObject);
+            getContainingObject(borderingObjects,p4);
+            return true;
+        }
+        if (p5 != null && !poly.contains(p5.getPoint()))
+        {
+            borderingObjects.add(containingObject);
+            getContainingObject(borderingObjects,p5);
+            return true;
+        }
+        if (p6 != null && !poly.contains(p6.getPoint()))
+        {
+            borderingObjects.add(containingObject);
+            getContainingObject(borderingObjects,p6); 
+            return true;
+        }
+        if (p7 != null && !poly.contains(p7.getPoint())) 
+        {
+            borderingObjects.add(containingObject);
+            getContainingObject(borderingObjects,p7); 
+            return true;
+        }
+        if (p8 != null && !poly.contains(p8.getPoint())) 
+        {
+            borderingObjects.add(containingObject);
+            getContainingObject(borderingObjects,p8);
+            return true;
+        }
         return false;
         
     }
     
-    private boolean isEdgeLowContrast(int column, int row)
+    private boolean isEdgeLowContrast(int column, int row, int threshold)
     {
         if (column < 1 || row < 1 || column > image_pixels.getWidth() - 2 ||
                 row > image_pixels.getHeight() - 2)
         {
             return false;
         }
-        int threshold = 10;
         boolean isLowContrast = true;
         double pixel = getPixel(column,row,image_pixels).getAverage();
         double p1 = getPixel(column+1,row,image_pixels).getAverage();
@@ -751,7 +801,15 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         return isLowContrast;
     }
     
-    public void colorPixel(int column, int row, MaskedObject containingObj, int hue_variation,
+    private Color blendColors(Color c1, Color c2)
+    {
+        return new Color((c1.getRed()+c2.getRed())/2,
+                            (c1.getGreen()+c2.getGreen())/2,
+                                    (c1.getRed()+c2.getBlue())/2
+        );
+    }
+    
+    private void colorPixel(int column, int row, MaskedObject containingObj, int hue_variation,
             int saturation_variation, int complement_threshold)
     {
         Color color_picked;
@@ -763,29 +821,28 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         {
             color_picked = containingObj.color;
         }
+        
+        
+        
+        /* TESTING ONLY, FOR NOW IT WILL TURN LOW CONTRAST EDGES YELLOW */
+        ArrayList<MaskedObject> borderingObjects = new ArrayList();
+        boolean isEdge = isEdgePixel(column, row, borderingObjects, containingObj);
+        if (isEdge)
+        {
+            boolean lowContrastEdge = isEdgeLowContrast(column, row, 10);
+            if (lowContrastEdge && borderingObjects != null)
+            {
+                Color c1 = borderingObjects.get(0).color;
+                Color c2 = borderingObjects.get(1).color;
+                color_picked = blendColors(c1,c2);
+            }
+        }
+        // --------------- //
         float[] hsbInput = new float[3];
         Color.RGBtoHSB(color_picked.getRed(),color_picked.getGreen(), color_picked.getBlue(), hsbInput);
         float inputHue = hsbInput[0];
         float inputSaturation = hsbInput[1];
         Pixel pixel = getPixel(column,row,image_pixels);
-        
-        
-        /* TESTING ONLY, FOR NOW IT WILL TURN LOW CONTRAST EDGES YELLOW */
-        ArrayList<MaskedObject> borderingObjects = null;
-        boolean isEdge = isEdgePixel(column, row, borderingObjects, containingObj);
-        if (isEdge)
-        {
-            boolean lowContrastEdge = isEdgeLowContrast(column, row);
-            if (lowContrastEdge)
-            {
-                //Color c1 = borderingObjects.get(0).color;
-                //Color c2 = borderingObjects.get(1).color;
-                pixel.setRGB(255, 255, 0);
-                return;
-            }
-        }
-        // --------------- //
-        
         int pixelR = pixel.getRedValue();
         int pixelG = pixel.getGreenValue();
         int pixelB = pixel.getBlueValue();
