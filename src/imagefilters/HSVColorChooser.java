@@ -14,6 +14,7 @@ import java.awt.event.ActionListener;
 import java.awt.event.FocusEvent;
 import java.awt.event.FocusListener;
 import javax.swing.JButton;
+import javax.swing.JComboBox;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -31,6 +32,10 @@ import javax.swing.event.ChangeListener;
  */
 public class HSVColorChooser extends JPanel {
     
+    
+    String[] edgeBlendStrings = { "No Edge Blend", "Edge Blend 1 Pixel"};
+    JComboBox edgeBlendList = new JComboBox(edgeBlendStrings);
+
     
     JSlider hue_slider;
     int hue_min = 0;
@@ -318,7 +323,7 @@ public class HSVColorChooser extends JPanel {
         // Complementary Shadows
         // -----------------------
         JPanel complement_panel = new JPanel();
-        JLabel complement_label = new JLabel("shadow complement");
+        JLabel complement_label = new JLabel("comp shade");
         complement_slider = new JSlider(JSlider.HORIZONTAL,comp_min,comp_max,comp_initial);
         SpinnerModel complement_model =
         new SpinnerNumberModel(comp_initial, //initial value
@@ -342,8 +347,8 @@ public class HSVColorChooser extends JPanel {
                     imgFilters.currentProjectState.selectedPolygon.complement_threshold = 
                         (int)complement_spinner.getValue();
                 }
-                repaint();
                 calculateRGB();
+                repaint();
             }
         });
         complement_panel.add(complement_label);
@@ -351,6 +356,18 @@ public class HSVColorChooser extends JPanel {
         complement_panel.add(complement_spinner);
         
         
+        // -----------------------
+        // Edge Blend JCombo Box
+        // -----------------------
+        
+        edgeBlendList.addActionListener (new ActionListener () {
+            public void actionPerformed(ActionEvent e) {
+                int index = edgeBlendList.getSelectedIndex();
+                imgFilters.currentProjectState.selectedPolygon.edgeBlendIndex = index;
+                calculateRGB();
+                repaint();
+            }
+        });
         
         // -----------------------
         // Video Frame
@@ -550,11 +567,12 @@ public class HSVColorChooser extends JPanel {
         this.add(sat_variation_panel);
         
         this.add(complement_panel);
+        this.add(edgeBlendList);
+        this.add(depthPanel);
         
         this.add(new JLabel("   Video Frame"));
         this.add(video_frame_panel);
         this.add(grabFramesPanel);
-        this.add(depthPanel);
         //this.add(red_panel);
         //this.add(green_panel);
         //this.add(blue_panel);
@@ -675,9 +693,9 @@ public class HSVColorChooser extends JPanel {
           Graphics2D g2d = (Graphics2D) g;
 
           g2d.setColor(new Color(red, green, blue));
-          g2d.fillRect(10, 5, 240, 25);
+          g2d.fillRect(10, 5, 330, 25);
           g2d.setColor(new Color(0, 0, 0));
-          g2d.drawRect(10, 5, 240, 25);
+          g2d.drawRect(10, 5, 330, 25);
 
         }
 

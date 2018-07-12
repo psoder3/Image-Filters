@@ -822,22 +822,25 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
             color_picked = containingObj.color;
         }
         
-        
-        
-        /* TESTING ONLY, FOR NOW IT WILL TURN LOW CONTRAST EDGES YELLOW */
-        ArrayList<MaskedObject> borderingObjects = new ArrayList();
-        boolean isEdge = isEdgePixel(column, row, borderingObjects, containingObj);
-        if (isEdge)
+        if (hsvColorChooser.edgeBlendList.getSelectedIndex() == 1)
         {
-            boolean lowContrastEdge = isEdgeLowContrast(column, row, 10);
-            if (lowContrastEdge && borderingObjects != null && borderingObjects.size() > 1)
+
+            /* TESTING ONLY, FOR NOW IT WILL TURN LOW CONTRAST EDGES YELLOW */
+            ArrayList<MaskedObject> borderingObjects = new ArrayList();
+            boolean isEdge = isEdgePixel(column, row, borderingObjects, containingObj);
+            if (isEdge)
             {
-                Color c1 = borderingObjects.get(0).color;
-                Color c2 = borderingObjects.get(1).color;
-                color_picked = blendColors(c1,c2);
+                boolean lowContrastEdge = isEdgeLowContrast(column, row, 10);
+                if (lowContrastEdge && borderingObjects != null && borderingObjects.size() > 1)
+                {
+                    Color c1 = borderingObjects.get(0).color;
+                    Color c2 = borderingObjects.get(1).color;
+                    color_picked = blendColors(c1,c2);
+                }
             }
+            // --------------- //
         }
-        // --------------- //
+        
         float[] hsbInput = new float[3];
         Color.RGBtoHSB(color_picked.getRed(),color_picked.getGreen(), color_picked.getBlue(), hsbInput);
         float inputHue = hsbInput[0];
@@ -3264,6 +3267,8 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         copy.id = p.id;
         copy.hue_variation = p.hue_variation;
         copy.saturation_variation = p.saturation_variation;
+        copy.complement_threshold = p.complement_threshold;
+        copy.edgeBlendIndex = p.edgeBlendIndex;
         copy.polygon = new Polygon(p.polygon.xpoints,p.polygon.ypoints,p.polygon.npoints);
         return copy;
     }
@@ -3779,6 +3784,8 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                     }
                     fw.append("hVar " + p.hue_variation + "\n");
                     fw.append("sVar " + p.saturation_variation + "\n");
+                    fw.append("shadowComplement " + p.complement_threshold + "\n");
+                    fw.append("edgeBlendIndex " + p.edgeBlendIndex + "\n");
                     fw.append("depth " + p.depth + "\n");
                     fw.append(p.polygon.npoints+"\n");
                     for (int i = 0; i < p.polygon.npoints; i++)
@@ -3971,6 +3978,9 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                 }
                 fw.append("hVar " + p.hue_variation + "\n");
                 fw.append("sVar " + p.saturation_variation + "\n");
+                
+                fw.append("shadowComplement " + p.complement_threshold + "\n");
+                fw.append("edgeBlendIndex " + p.edgeBlendIndex + "\n");
                 fw.append("depth " + p.depth + "\n");
                 fw.append(p.polygon.npoints+"\n");
                 for (int i = 0; i < p.polygon.npoints; i++)
@@ -4888,6 +4898,20 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
             {
                 int saturationVariation = reader.nextInt();
                 poly.saturation_variation = saturationVariation;
+                next = reader.next();
+            }
+            
+            if (next.equals("shadowComplement"))
+            {
+                int shadowComplementThreshold = reader.nextInt();
+                poly.complement_threshold = shadowComplementThreshold;
+                next = reader.next();
+            }
+            
+            if (next.equals("edgeBlendIndex"))
+            {
+                int index = reader.nextInt();
+                poly.edgeBlendIndex = index;
                 next = reader.next();
             }
             
@@ -6046,6 +6070,8 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                 hsvColorChooser.sat_var_slider.setValue(clickedObject.saturation_variation);
                 hsvColorChooser.complement_spinner.setValue(clickedObject.complement_threshold);
                 hsvColorChooser.complement_slider.setValue(clickedObject.complement_threshold);
+                hsvColorChooser.edgeBlendList.setSelectedIndex(clickedObject.edgeBlendIndex);
+
             }
             else
             {
@@ -7016,6 +7042,7 @@ class MaskedObject
     int hue_variation;
     int saturation_variation;
     int complement_threshold;
+    int edgeBlendIndex;
     
     public MaskedObject()
     {
