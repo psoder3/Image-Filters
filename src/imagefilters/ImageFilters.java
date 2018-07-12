@@ -664,18 +664,143 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         return variation/100;
     }
     
-    public void colorPixel(int column, int row, Color color_picked, int hue_variation,
-            int saturation_variation)
+    private boolean isEdgePixel(int column, int row, ArrayList<MaskedObject> borderingObjects,
+            MaskedObject containingObject)
     {
+        Polygon poly = containingObject.polygon;
+        
+        Pixel p1 = null;
+        Pixel p2 = null;
+        Pixel p3 = null;
+        Pixel p4 = null;
+        Pixel p5 = null;
+        Pixel p6 = null;
+        Pixel p7 = null;
+        Pixel p8 = null;
+        if (column < image_pixels.getWidth()-1)
+        {
+            p1 = getPixel(column+1,row,image_pixels);
+        }
+        if (column > 0)
+        {
+            p2 = getPixel(column-1,row,image_pixels);
+        }
+        if (row < image_pixels.getHeight()-1)
+        {
+            p3 = getPixel(column,row+1,image_pixels);
+        }
+        if (row > 0)
+        {
+            p4 = getPixel(column,row-1,image_pixels);
+        }
+        if (column < image_pixels.getWidth()-1 && row > 0)
+        {
+            p5 = getPixel(column+1,row-1,image_pixels);
+        }
+        if (column > 0 && row < image_pixels.getHeight()-1)
+        {
+            p6 = getPixel(column-1,row+1,image_pixels);
+        }
+        if (column < image_pixels.getWidth()-1 && row < image_pixels.getHeight()-1)
+        {
+            p7 = getPixel(column+1,row+1,image_pixels);
+        }
+        if (column > 0 && row > 0)
+        {
+            p8 = getPixel(column-1,row-1,image_pixels);
+        }
+        if (p1 != null && !poly.contains(p1.getPoint())) return true;
+        if (p2 != null && !poly.contains(p2.getPoint())) return true;
+        if (p3 != null && !poly.contains(p3.getPoint())) return true;
+        if (p4 != null && !poly.contains(p4.getPoint())) return true;
+        if (p5 != null && !poly.contains(p5.getPoint())) return true;
+        if (p6 != null && !poly.contains(p6.getPoint())) return true;
+        if (p7 != null && !poly.contains(p7.getPoint())) return true;
+        if (p8 != null && !poly.contains(p8.getPoint())) return true;
+        
+        return false;
+        
+    }
+    
+    private boolean isEdgeLowContrast(int column, int row)
+    {
+        if (column < 1 || row < 1 || column > image_pixels.getWidth() - 2 ||
+                row > image_pixels.getHeight() - 2)
+        {
+            return false;
+        }
+        int threshold = 10;
+        boolean isLowContrast = true;
+        double pixel = getPixel(column,row,image_pixels).getAverage();
+        double p1 = getPixel(column+1,row,image_pixels).getAverage();
+        double p2 = getPixel(column-1,row,image_pixels).getAverage();
+        double p3 = getPixel(column,row+1,image_pixels).getAverage();
+        double p4 = getPixel(column,row-1,image_pixels).getAverage();
+        double p5 = getPixel(column+1,row-1,image_pixels).getAverage();
+        double p6 = getPixel(column-1,row+1,image_pixels).getAverage();
+        double p7 = getPixel(column+1,row+1,image_pixels).getAverage();
+        double p8 = getPixel(column-1,row-1,image_pixels).getAverage();
+        if (Math.abs(pixel - p1) > threshold) isLowContrast = false;
+        if (Math.abs(pixel - p2) > threshold) isLowContrast = false;
+        if (Math.abs(pixel - p3) > threshold) isLowContrast = false;
+        if (Math.abs(pixel - p4) > threshold) isLowContrast = false;
+        if (Math.abs(pixel - p5) > threshold) isLowContrast = false;
+        if (Math.abs(pixel - p6) > threshold) isLowContrast = false;
+        if (Math.abs(pixel - p7) > threshold) isLowContrast = false;
+        if (Math.abs(pixel - p8) > threshold) isLowContrast = false;
+        return isLowContrast;
+    }
+    
+    public void colorPixel(int column, int row, MaskedObject containingObj, int hue_variation,
+            int saturation_variation, int complement_threshold)
+    {
+        Color color_picked;
+        if (containingObj == null)
+        {
+            color_picked = new Color(0,0,0);
+        }
+        else 
+        {
+            color_picked = containingObj.color;
+        }
         float[] hsbInput = new float[3];
         Color.RGBtoHSB(color_picked.getRed(),color_picked.getGreen(), color_picked.getBlue(), hsbInput);
         float inputHue = hsbInput[0];
         float inputSaturation = hsbInput[1];
         Pixel pixel = getPixel(column,row,image_pixels);
+        
+        
+        /* TESTING ONLY, FOR NOW IT WILL TURN LOW CONTRAST EDGES YELLOW */
+        ArrayList<MaskedObject> borderingObjects = null;
+        boolean isEdge = isEdgePixel(column, row, borderingObjects, containingObj);
+        if (isEdge)
+        {
+            boolean lowContrastEdge = isEdgeLowContrast(column, row);
+            if (lowContrastEdge)
+            {
+                //Color c1 = borderingObjects.get(0).color;
+                //Color c2 = borderingObjects.get(1).color;
+                pixel.setRGB(255, 255, 0);
+                return;
+            }
+        }
+        // --------------- //
+        
         int pixelR = pixel.getRedValue();
         int pixelG = pixel.getGreenValue();
         int pixelB = pixel.getBlueValue();
         int average = (int)(((pixelR+pixelG+pixelB)/3.0));
+        if (average < complement_threshold)
+        {
+            inputHue = inputHue + .5f;
+            if (inputHue >= 1)
+            {
+                inputHue -= 1;
+            }
+            hsbInput[0] = inputHue;
+            inputSaturation /= 8;
+            hsbInput[1] = inputSaturation;
+        }
         pixelR = average;
         pixelG = average;
         pixelB = average;
@@ -899,9 +1024,10 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
 
     }
     
-    public void colorizePolygon(Color color_picked, int hue_variation, int saturation_variation)
+    public void colorizePolygon(MaskedObject containingObj, int hue_variation, int saturation_variation,
+            int complement_threshold)
     {
-        if (color_picked == null || currentProjectState.selectedPolygon == null)
+        if (containingObj == null || currentProjectState.selectedPolygon == null)
         {
             return;
         }
@@ -922,7 +1048,8 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                 
                 if (containingObjects.size() == 1)
                 {
-                    colorPixel(column,row,color_picked,hue_variation,saturation_variation);
+                    colorPixel(column,row,containingObj,hue_variation,
+                            saturation_variation,complement_threshold);
                 }
                 else
                 {
@@ -938,7 +1065,8 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                     }
                     if (topLayer)
                     {
-                        colorPixel(column,row,color_picked,hue_variation,saturation_variation);
+                        colorPixel(column,row,containingObj,hue_variation,
+                                saturation_variation,complement_threshold);
                     }
                 }
             }
@@ -970,14 +1098,13 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                 {
                     Pixel p = getPixel(column,row,image_pixels);
                     int average = p.getAverage();
-                    Color gray = new Color(average,average,average);
                     if (average == p.getRedValue() && average == p.getBlueValue())
                     {
                         // already gray
                     }
                     else
                     {
-                        colorPixel(column,row,gray,0,0);
+                        colorPixel(column,row,null,0,0,0);
                     }
                     continue;
                 }
@@ -994,8 +1121,9 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                         winningObject = p;
                     }
                 }
-                colorPixel(column,row,winningColor,winningObject.hue_variation,
-                        winningObject.saturation_variation);
+                colorPixel(column,row,winningObject,winningObject.hue_variation,
+                        winningObject.saturation_variation,
+                        winningObject.complement_threshold);
             }
             //System.out.println();
         }
@@ -5859,7 +5987,8 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                 hsvColorChooser.sat_variation_spinner.setValue(clickedObject.saturation_variation);
                 hsvColorChooser.hue_var_slider.setValue(clickedObject.hue_variation);
                 hsvColorChooser.sat_var_slider.setValue(clickedObject.saturation_variation);
-                
+                hsvColorChooser.complement_spinner.setValue(clickedObject.complement_threshold);
+                hsvColorChooser.complement_slider.setValue(clickedObject.complement_threshold);
             }
             else
             {
@@ -6591,7 +6720,8 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         {
             currentProjectState.selectedPolygon = p;
             currentProjectState.selectedVertexIndex = 0;
-            colorizePolygon(p.color, p.hue_variation, p.saturation_variation);
+            colorizePolygon(p, p.hue_variation, p.saturation_variation, 
+                    p.complement_threshold);
         }
         repaint();
     }
@@ -6716,6 +6846,10 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
             return (red + green + blue)/3;
         }
         
+        public java.awt.Point getPoint()
+        {
+            return new java.awt.Point(column,row);
+        }
         
         public void setRGB(int r, int g, int b)
         {
@@ -6824,6 +6958,7 @@ class MaskedObject
     double depth;
     int hue_variation;
     int saturation_variation;
+    int complement_threshold;
     
     public MaskedObject()
     {

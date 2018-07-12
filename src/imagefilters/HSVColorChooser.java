@@ -57,12 +57,19 @@ public class HSVColorChooser extends JPanel {
     int sat_var_max = 100;
     int sat_var_initial = 0;
     
+    JSlider complement_slider;
+    int comp_min = 0;
+    int comp_max = 256;
+    int comp_initial = 0;
+    
     JSpinner hue_spinner;
     JSpinner sat_spinner;
     JSpinner val_spinner;
     
     JSpinner hue_variation_spinner;
     JSpinner sat_variation_spinner;
+    
+    JSpinner complement_spinner;
     
     JSpinner video_frame_spinner;
     
@@ -77,7 +84,7 @@ public class HSVColorChooser extends JPanel {
     
     JLabel depthLbl = new JLabel("   Object Depth");
     JTextField depthField = new JTextField(3);
-
+    
     
     boolean lastPressedWasBackward = false;
     ChangeListener videoSpinnerCL;
@@ -242,9 +249,9 @@ public class HSVColorChooser extends JPanel {
         hue_var_slider = new JSlider(JSlider.HORIZONTAL,hue_var_min,hue_var_max,hue_var_initial);
 
         SpinnerModel hue_variation_model =
-        new SpinnerNumberModel(0, //initial value
-                               hue_min, //min
-                               hue_max, //max
+        new SpinnerNumberModel(hue_var_initial, //initial value
+                               hue_var_min, //min
+                               hue_var_max, //max
                                1);                //step
         hue_variation_spinner = new JSpinner(hue_variation_model);
         hue_var_slider.addChangeListener(new ChangeListener() {
@@ -257,6 +264,7 @@ public class HSVColorChooser extends JPanel {
         hue_variation_spinner.addChangeListener(new ChangeListener() {
             @Override
             public void stateChanged(ChangeEvent e) {
+                hue_var_slider.setValue((int)(hue_variation_spinner.getValue()));
                 if (imgFilters.currentProjectState.selectedPolygon != null)
                 {
                     imgFilters.currentProjectState.selectedPolygon.hue_variation = 
@@ -277,9 +285,9 @@ public class HSVColorChooser extends JPanel {
         JLabel sat_variation_label = new JLabel("sat variation");
         sat_var_slider = new JSlider(JSlider.HORIZONTAL,sat_var_min,sat_var_max,sat_var_initial);
         SpinnerModel sat_variation_model =
-        new SpinnerNumberModel(0, //initial value
-                               sat_min, //min
-                               sat_max, //max
+        new SpinnerNumberModel(sat_var_initial, //initial value
+                               sat_var_min, //min
+                               sat_var_max, //max
                                1);                //step
         sat_variation_spinner = new JSpinner(sat_variation_model);
         sat_var_slider.addChangeListener(new ChangeListener() {
@@ -292,6 +300,7 @@ public class HSVColorChooser extends JPanel {
         sat_variation_spinner.addChangeListener(new ChangeListener() {
             @Override
             public void stateChanged(ChangeEvent e) {
+                sat_var_slider.setValue((int)(sat_variation_spinner.getValue()));
                 if (imgFilters.currentProjectState.selectedPolygon != null)
                 {
                     imgFilters.currentProjectState.selectedPolygon.saturation_variation = 
@@ -304,6 +313,44 @@ public class HSVColorChooser extends JPanel {
         sat_variation_panel.add(sat_variation_label);
         sat_variation_panel.add(sat_var_slider);
         sat_variation_panel.add(sat_variation_spinner);
+        
+        // -----------------------
+        // Complementary Shadows
+        // -----------------------
+        JPanel complement_panel = new JPanel();
+        JLabel complement_label = new JLabel("shadow complement");
+        complement_slider = new JSlider(JSlider.HORIZONTAL,comp_min,comp_max,comp_initial);
+        SpinnerModel complement_model =
+        new SpinnerNumberModel(comp_initial, //initial value
+                               comp_min, //min
+                               comp_max, //max
+                               1);                //step
+        complement_spinner = new JSpinner(complement_model);
+        complement_slider.addChangeListener(new ChangeListener() {
+            @Override
+            public void stateChanged(ChangeEvent e) {
+                complement_spinner.setValue((int)(complement_slider.getValue()));
+                repaint();
+            }
+        });
+        complement_spinner.addChangeListener(new ChangeListener() {
+            @Override
+            public void stateChanged(ChangeEvent e) {
+                complement_slider.setValue((int)(complement_spinner.getValue()));
+                if (imgFilters.currentProjectState.selectedPolygon != null)
+                {
+                    imgFilters.currentProjectState.selectedPolygon.complement_threshold = 
+                        (int)complement_spinner.getValue();
+                }
+                repaint();
+                calculateRGB();
+            }
+        });
+        complement_panel.add(complement_label);
+        complement_panel.add(complement_slider);
+        complement_panel.add(complement_spinner);
+        
+        
         
         // -----------------------
         // Video Frame
@@ -502,6 +549,8 @@ public class HSVColorChooser extends JPanel {
         this.add(hue_variation_panel);
         this.add(sat_variation_panel);
         
+        this.add(complement_panel);
+        
         this.add(new JLabel("   Video Frame"));
         this.add(video_frame_panel);
         this.add(grabFramesPanel);
@@ -578,9 +627,11 @@ public class HSVColorChooser extends JPanel {
         {
             Color color = getColor();
             imageFilters.currentProjectState.selectedPolygon.color = color;
+            MaskedObject polygon = imageFilters.currentProjectState.selectedPolygon;
             int hue_variation = imageFilters.currentProjectState.selectedPolygon.hue_variation;
             int saturation_variation = imageFilters.currentProjectState.selectedPolygon.saturation_variation;
-            imageFilters.colorizePolygon(color,hue_variation,saturation_variation);
+            int complement_threshold = imageFilters.currentProjectState.selectedPolygon.complement_threshold;
+            imageFilters.colorizePolygon(polygon,hue_variation,saturation_variation,complement_threshold);
             imageFilters.repaint();
         }
     }
