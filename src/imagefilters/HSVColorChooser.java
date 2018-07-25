@@ -320,10 +320,11 @@ public class HSVColorChooser extends JPanel {
         sat_variation_panel.add(sat_variation_spinner);
         
         // -----------------------
+        // SECONDARY COLOR THRESHOLD (FOR MULTIPLE COLORS IN SAME OBJECT)
         // Complementary Shadows
         // -----------------------
         JPanel complement_panel = new JPanel();
-        JLabel complement_label = new JLabel("comp shade");
+        JLabel complement_label = new JLabel("secondary");
         complement_slider = new JSlider(JSlider.HORIZONTAL,comp_min,comp_max,comp_initial);
         SpinnerModel complement_model =
         new SpinnerNumberModel(comp_initial, //initial value

@@ -1,3 +1,4 @@
+/*
 package imagefilters;
 
 import java.awt.Color;
@@ -45,14 +46,14 @@ public class DemoColorChooser {
         chooser.getSelectionModel().addChangeListener(new ChangeListener() {
             @Override
             public void stateChanged(ChangeEvent arg0) {
-                if (imageFilters.selectedPolygon == null)
+                if (imageFilters.currentProjectState.selectedPolygon == null)
                 {
                     return;
                 }
                 Color color = chooser.getColor();
                 //System.out.println(color);
                 imageFilters.image_pixels = imageFilters.toBufferedImage(imageFilters.selected_image);
-                imageFilters.colorizePolygon(color);
+                imageFilters.colorizePolygon(color,0,0,0);
                 imageFilters.repaint();
             }
         });
@@ -61,9 +62,9 @@ public class DemoColorChooser {
             public void actionPerformed(ActionEvent evt) {
                 
                 System.out.println("Clicked OK");
-                if (imageFilters.selectedPolygon != null)
+                if (imageFilters.currentProjectState.selectedPolygon != null)
                 {
-                    imageFilters.selectedPolygon.color = chooser.getColor();
+                    imageFilters.currentProjectState.selectedPolygon.color = chooser.getColor();
                 }
             }
         };
@@ -72,9 +73,9 @@ public class DemoColorChooser {
             public void actionPerformed(ActionEvent evt) {
                 System.out.println("Canceled");
                 Color c = null;
-                if (imageFilters.selectedPolygon != null)
+                if (imageFilters.currentProjectState.selectedPolygon != null)
                 {
-                    c = imageFilters.selectedPolygon.color;
+                    c = imageFilters.currentProjectState.selectedPolygon.color;
                 }
                 
                 imageFilters.colorChooser.setSelectedColor(c);
@@ -110,3 +111,5 @@ class MyPreviewPane extends JLabel{
     g.fillRect(0, 0, getWidth() - 1, getHeight() - 1);
   }
 }
+
+*/

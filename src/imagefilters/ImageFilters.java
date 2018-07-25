@@ -38,26 +38,21 @@ import java.util.Iterator;
 import java.util.Scanner;
 import javax.imageio.ImageIO;
 import javax.swing.JComboBox;
-import imagefilters.ColorChooserButton.ColorChangedListener;
 import java.awt.BasicStroke;
 import java.awt.Polygon;
 import java.awt.Stroke;
 import java.awt.Toolkit;
-import java.awt.color.ColorSpace;
-import java.awt.color.ICC_ColorSpace;
-import java.awt.color.ICC_Profile;
+import java.awt.event.FocusEvent;
+import java.awt.event.FocusListener;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 import java.awt.event.MouseMotionListener;
 import java.awt.geom.AffineTransform;
-import java.awt.image.ColorConvertOp;
-import java.beans.PropertyChangeListener;
 import java.io.FileNotFoundException;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.Stack;
 import javax.swing.AbstractAction;
-import javax.swing.Action;
 
 import javax.swing.JFrame;
 import javax.swing.JLabel;
@@ -65,7 +60,6 @@ import javax.swing.JMenu;
 import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
 import javax.swing.JPanel;
-import javax.swing.JScrollPane;
 import javax.swing.JTextField;
 import javax.swing.KeyStroke;
 import javax.swing.SpinnerNumberModel;
@@ -92,7 +86,8 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
     Stack<ProjectState> UndoStack = new Stack();
     Stack<ProjectState> RedoStack = new Stack();
     
-    
+    boolean AutoCompleteBorder = false;
+    boolean BorderReversed = false;
     JMenuBar menuBar;
     JMenu menu;
     JMenuItem undoItem;
@@ -106,6 +101,8 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
     JMenuItem drawItem;
     JMenuItem findEdgesItem;
     JMenuItem trackMotionItem;
+    JMenuItem autoBorderItem;
+    JMenuItem reverseBorderDirectionItem;
     
     
     
@@ -146,6 +143,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
     JButton ApplyFilterButton = new JButton("Apply Filter");
     JCheckBox ShowOutlinesCheckbox = new JCheckBox("Show Object Outlines");
     JCheckBox InterpolateGapsCheckbox = new JCheckBox("Interpolate Gaps");
+    JButton countColorsButton = new JButton("Count Colors");
     JLabel frameRangeLbl1 = new JLabel("frames");
     JLabel frameRangeLbl2 = new JLabel("to");
     JTextField firstFrameChooser = new JTextField(3);
@@ -170,7 +168,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
     
     JButton loadVideoButton = new JButton("Load Video");
     
-    Set<Point> ObjectSelection = new HashSet();
+    Set<PointXY> ObjectSelection = new HashSet();
     
     BufferedImage[] bufferedImageFrames;
 
@@ -391,7 +389,37 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         });
         menu.add(trackMotionItem);
         
+        autoBorderItem = new JMenuItem("Turn Auto-Complete Border On");
+        autoBorderItem.setAccelerator(KeyStroke.getKeyStroke(
+                KeyEvent.VK_M, Toolkit.getDefaultToolkit().getMenuShortcutKeyMask()));
+        autoBorderItem.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (AutoCompleteBorder)
+                {
+                    AutoCompleteBorder = false;
+                    autoBorderItem.setText("Turn Auto-Complete Border On");
+                }
+                else
+                {
+                    AutoCompleteBorder = true;
+                    autoBorderItem.setText("Turn Auto-Complete Border Off");
+                }
+            }
+        });
+        menu.add(autoBorderItem);
         
+        reverseBorderDirectionItem = new JMenuItem("Reverse Auto-Complete Direction");
+        reverseBorderDirectionItem.setAccelerator(KeyStroke.getKeyStroke(
+                KeyEvent.VK_R, Toolkit.getDefaultToolkit().getMenuShortcutKeyMask()));
+        reverseBorderDirectionItem.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                BorderReversed = !BorderReversed;
+                repaint();
+            }
+        });
+        menu.add(reverseBorderDirectionItem);
     }
     
     public Pixel findMedian(ArrayList<Pixel> kernal, String color)
@@ -810,12 +838,25 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
     }
     
     private void colorPixel(int column, int row, MaskedObject containingObj, int hue_variation,
-            int saturation_variation, int complement_threshold)
+            int saturation_variation, int secondary_threshold)
     {
         Color color_picked;
+        Pixel pixel = getPixel(column,row,image_pixels);
+        int pixelR = pixel.getRedValue();
+        int pixelG = pixel.getGreenValue();
+        int pixelB = pixel.getBlueValue();
+        int average = (int)(((pixelR+pixelG+pixelB)/3.0));
+        
+        pixelR = average;
+        pixelG = average;
+        pixelB = average;
         if (containingObj == null)
         {
             color_picked = new Color(0,0,0);
+        }
+        else if (average > 256-secondary_threshold)
+        {
+            color_picked = containingObj.secondary_color;
         }
         else 
         {
@@ -845,25 +886,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         Color.RGBtoHSB(color_picked.getRed(),color_picked.getGreen(), color_picked.getBlue(), hsbInput);
         float inputHue = hsbInput[0];
         float inputSaturation = hsbInput[1];
-        Pixel pixel = getPixel(column,row,image_pixels);
-        int pixelR = pixel.getRedValue();
-        int pixelG = pixel.getGreenValue();
-        int pixelB = pixel.getBlueValue();
-        int average = (int)(((pixelR+pixelG+pixelB)/3.0));
-        if (average < complement_threshold)
-        {
-            inputHue = inputHue + .5f;
-            if (inputHue >= 1)
-            {
-                inputHue -= 1;
-            }
-            hsbInput[0] = inputHue;
-            inputSaturation /= 8;
-            hsbInput[1] = inputSaturation;
-        }
-        pixelR = average;
-        pixelG = average;
-        pixelB = average;
+        
         float[] hsb = new float[3];
         Color.RGBtoHSB(pixelR,pixelG,pixelB,hsb);
         float h = hsb[0];
@@ -2526,16 +2549,28 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                     {
                         g.setColor(Color.GREEN);
                     }
-                    g.drawPolygon(p.polygon);
-                    if (p.equals(currentProjectState.selectedPolygon))
+                    if (currentProjectState.tempAutoCompletePolygon == null)
                     {
-                        g.setColor(Color.GREEN);
-                        g.drawLine(p.polygon.xpoints[currentProjectState.selectedVertexIndex], 
-                                p.polygon.ypoints[currentProjectState.selectedVertexIndex],
-                                p.polygon.xpoints[0], p.polygon.ypoints[0]);
+                        g.drawPolygon(p.polygon);
+                    
+                        if (p.equals(currentProjectState.selectedPolygon))
+                        {
+                            g.setColor(Color.GREEN);
+                            g.drawLine(p.polygon.xpoints[currentProjectState.selectedVertexIndex], 
+                                    p.polygon.ypoints[currentProjectState.selectedVertexIndex],
+                                    p.polygon.xpoints[0], p.polygon.ypoints[0]);
+                        }
                     }
                 }
                 
+            }
+            if (currentProjectState.tempAutoCompletePolygon != null)
+            {
+                g.setColor(new Color(155, 66, 244));
+                Stroke currStroke = g2d.getStroke();
+                g2d.setStroke(new BasicStroke((int)(1/scale)*2));
+                g.drawPolygon(currentProjectState.tempAutoCompletePolygon.polygon);
+                g2d.setStroke(currStroke);
             }
             if (currentProjectState.selectedVertexIndex != -1)
             {
@@ -3433,6 +3468,18 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         graphic.addKeyListener(graphic);
         graphic.setFocusable(true);
         graphic.requestFocus();
+        graphic.addFocusListener(new FocusListener() {
+            @Override
+            public void focusGained(FocusEvent e) {
+            }
+
+            @Override
+            public void focusLost(FocusEvent e) {
+                graphic.currentProjectState.adjacentPolygon = null;
+                graphic.currentProjectState.adjacentPolygonVertex = -1;
+                graphic.repaint();
+            }
+        });
         //JScrollPane scroll = new JScrollPane(graphic,
         //    JScrollPane.VERTICAL_SCROLLBAR_ALWAYS, 
         //    JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
@@ -3723,11 +3770,106 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
             }
         }); 
         
-         
+        graphic.countColorsButton.addActionListener((ActionEvent e) -> {
+            int roundFactor = 10;
+            int currentIndex = 0;
+            int totalPixels = graphic.image_pixels.getWidth() * graphic.image_pixels.getHeight();
+            ArrayList<ColorFrequency> freqs = new ArrayList();
+            try {
+                graphic.image_pixels = graphic.toBufferedImage(graphic.selected_image);
+                
+                for (int i = 0; i < graphic.image_pixels.getHeight(); i++)
+                {
+                    for (int j = 0; j < graphic.image_pixels.getWidth(); j++)
+                    {
+                        int currentCount = (i*graphic.image_pixels.getWidth() + j);
+                        if (currentCount % 1000 == 0)
+                        {
+                            System.out.println(currentCount + " / " + totalPixels);
+                        }
+                        Pixel p = graphic.getPixel(j,i,graphic.image_pixels);
+                        int r = ((p.red + (roundFactor/2)) / roundFactor) * roundFactor;
+                        int g = ((p.green + (roundFactor/2)) / roundFactor) * roundFactor;
+                        int b = ((p.blue + (roundFactor/2)) / roundFactor) * roundFactor;
+                        if (r > 255) 
+                        {
+                            r = 255;
+                        }
+                        if (r < 0)
+                        {
+                            r = 0;
+                        }
+                        if (g > 255)
+                        {
+                            g = 255;
+                        }
+                        if (g < 0)
+                        {
+                            g = 0;
+                        }
+                        if (b > 255)
+                        {
+                            b = 255;
+                        }
+                        if (b < 0)
+                        {
+                            b = 0;
+                        }
+                        Color c = new Color(r,g,b);
+                        boolean found = false;
+                        for (ColorFrequency col : freqs)
+                        {
+                            if (col.color.equals(c))
+                            {
+                                col.frequency++;
+                                found = true;
+                            }
+                        }
+                        if (!found)
+                        {
+                            ColorFrequency freq = new ColorFrequency();
+                            freq.color = c;
+                            freq.frequency = 1;
+                            freqs.add(freq);
+                        }
+                    }
+                }
+                Collections.sort(freqs);
+                for (ColorFrequency col : freqs)
+                {
+                    //System.out.println(col.frequency + " " + col.color);
+                } 
+                int freqCounter = 0;
+                for (int i = 0; i < graphic.image_pixels.getHeight(); i++)
+                {
+                    for (int j = 0; j < graphic.image_pixels.getWidth(); j++)
+                    {
+                        
+                        Pixel p = graphic.getPixel(j,i,graphic.image_pixels);
+                        ColorFrequency current = freqs.get(currentIndex);
+                        int red = current.color.getRed();
+                        int green = current.color.getGreen();
+                        int blue = current.color.getBlue();
+                        p.setRGB(red, green, blue);
+                        freqCounter++;
+                        if (freqCounter >= current.frequency)
+                        {
+                            freqCounter = 0;
+                            currentIndex++;
+                        }
+                    }
+                }
+                graphic.repaint();
+            } catch (Exception ex) {
+                Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, ex);
+            }
+        }); 
+        
         
         
         graphic.buttons.add(graphic.LoadImageButton);
         //graphic.buttons.add(graphic.LoadTrainingImageButton);
+        graphic.buttons.add(graphic.countColorsButton);
         graphic.buttons.add(graphic.loadVideoButton);
         graphic.buttons.add(graphic.saveVideoFrameButton);
         graphic.buttons.add(graphic.trackMotionButton);
@@ -3807,8 +3949,9 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         graphic.openButton.addActionListener((ActionEvent e) -> {
             JFileChooser fc = new JFileChooser();
             fc.setCurrentDirectory(new File(System.getProperty("user.home") 
-                    + File.separator + "documents" 
-                    + File.separator + "trainingImages"));
+                    + File.separator + "NetBeansProjects" 
+                    + File.separator + "ImageEditor"
+                    + File.separator + "PMOCs"));
             int result = fc.showOpenDialog(graphic);
             try
             {
@@ -3843,6 +3986,9 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         graphic.toolList.addActionListener (new ActionListener () {
             public void actionPerformed(ActionEvent e) {
                 graphic.requestFocus();
+                graphic.currentProjectState.adjacentPolygon = null;
+                graphic.currentProjectState.adjacentPolygonVertex = -1;
+                graphic.repaint();
             }
         });
         
@@ -4309,8 +4455,9 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
     private void LoadImage() {
         JFileChooser fc = new JFileChooser();
         fc.setCurrentDirectory(new File(System.getProperty("user.home") 
-                + File.separator + "documents" 
-                + File.separator + "trainingImages"));
+                + File.separator + "NetBeansProjects"
+                + File.separator + "ImageEditor"
+                + File.separator + "PMOCs"));
         int result = fc.showOpenDialog(ImageFilters.this);
         try
         {
@@ -5911,8 +6058,33 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         }
     }
     
+    private boolean perimeterContains(MaskedObject m, int x, int y)
+    {
+        for (int i = 0; i < m.polygon.npoints; i++)
+        {
+            if (m.polygon.xpoints[i] == x && m.polygon.ypoints[i] == y)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    private int getNearestCorrespondingPointIndex(Polygon p1, int x, int y)
+    {
+        for (int i = 0; i < p1.npoints; i++)
+        {
+            if (p1.xpoints[i] == x && p1.ypoints[i] == y)
+            {
+                return i;
+            }
+        }
+        return -1;
+    }
+        
     private void validateHoveringAdjacentObject(int x, int y)
     {
+        currentProjectState.tempAutoCompletePolygon = null;
         // Check if they're trying to click along a border of another polygon
         if (currentProjectState.selectedPolygon != null && currentProjectState.hoverVertexIndex == -1)
         {
@@ -5929,6 +6101,37 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                 {
                     currentProjectState.adjacentPolygon = p;
                     currentProjectState.adjacentPolygonVertex = possible_index;
+                    if (AutoCompleteBorder)
+                    {
+                        int x2 = currentProjectState.selectedPolygon.polygon.xpoints[currentProjectState.selectedVertexIndex];
+                        int y2 = currentProjectState.selectedPolygon.polygon.ypoints[currentProjectState.selectedVertexIndex];
+                        if (perimeterContains(p,x2,y2))
+                        {
+                            int anchorPointIndex = getNearestCorrespondingPointIndex(p.polygon,x2,y2);
+                            currentProjectState.tempAutoCompletePolygon = deepCopyPolygon(currentProjectState.selectedPolygon);
+                            if (BorderReversed)
+                            {
+                                for (int i = anchorPointIndex - 1; i != possible_index-1; i--)
+                                {
+                                    if (i < 0) i += p.polygon.npoints;
+                                    int x3 = p.polygon.xpoints[i];
+                                    int y3 = p.polygon.ypoints[i];
+                                    currentProjectState.tempAutoCompletePolygon.polygon.addPoint(x3, y3);
+                                }
+                            }
+                            else
+                            {
+                                for (int i = anchorPointIndex + 1; i != possible_index+1; i++)
+                                {
+                                    if (i >= p.polygon.npoints) i -= p.polygon.npoints;
+                                    int x3 = p.polygon.xpoints[i];
+                                    int y3 = p.polygon.ypoints[i];
+                                    currentProjectState.tempAutoCompletePolygon.polygon.addPoint(x3, y3);
+                                }
+                            }
+                            repaint();
+                        }
+                    }
                     break;
                 }
             }
@@ -6085,6 +6288,23 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         }
         else if (toolList.getSelectedItem().equals("Vertex Mode"))
         {
+            if (currentProjectState.tempAutoCompletePolygon != null)
+            {
+                for (int i = 0; i < currentProjectState.polygons.size(); i++)
+                {
+                    if (currentProjectState.polygons.get(i).polygon.equals(currentProjectState.selectedPolygon.polygon))
+                    {
+                        currentProjectState.polygons.remove(i);
+                        currentProjectState.polygons.add(i,currentProjectState.tempAutoCompletePolygon);
+                    }
+                }
+                currentProjectState.selectedPolygon = currentProjectState.tempAutoCompletePolygon;
+                currentProjectState.selectedVertexIndex = currentProjectState.selectedPolygon.polygon.npoints-1;
+                currentProjectState.tempAutoCompletePolygon = null;
+                repaint();
+                return;
+            }
+            
             int index = clickNearVertex(click.x, click.y);
             if (index != -1)
             {
@@ -6211,7 +6431,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         {
             for (int i = 0; i < p.polygon.npoints; i++)
             {
-                Point p2 = new Point(p.polygon.xpoints[i], p.polygon.ypoints[i]);
+                PointXY p2 = new PointXY(p.polygon.xpoints[i], p.polygon.ypoints[i]);
                 if (rect.contains(p2.x,p2.y))
                 {
                     currentProjectState.selectedObjects.add(p);
@@ -6232,7 +6452,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
 
             for (int i = 0; i < p.polygon.npoints; i++)
             {
-                Point p2 = new Point(p.polygon.xpoints[i], p.polygon.ypoints[i]);
+                PointXY p2 = new PointXY(p.polygon.xpoints[i], p.polygon.ypoints[i]);
                 if (rect.contains(p2.x,p2.y))
                 {
                     if (!currentProjectState.selectedObjects.contains(p))
@@ -6273,6 +6493,9 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
 
     @Override
     public void mouseExited(MouseEvent e) {
+        this.currentProjectState.adjacentPolygon = null;
+        this.currentProjectState.adjacentPolygonVertex = -1;
+        repaint();
     }
     
     public Click convertClick(MouseEvent e) {
@@ -6387,7 +6610,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         int gradientThreshold = 5;
         Pixel pixel = getPixel(x,y,image_pixels);
         
-        ObjectSelection.add(new Point(pixel.column, pixel.row));
+        ObjectSelection.add(new PointXY(pixel.column, pixel.row));
         
         int firstAverage = pixel.getAverage();
         int rightX = x;
@@ -6395,20 +6618,20 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         int upY = y;
         int downY = y;
         int lastAverage = firstAverage;
-        HashSet<Point> EdgesSelection = new HashSet();
-        EdgesSelection.add(new Point(pixel.column, pixel.row));
+        HashSet<PointXY> EdgesSelection = new HashSet();
+        EdgesSelection.add(new PointXY(pixel.column, pixel.row));
         int lastSize = 0;
         
         do 
         {
             Iterator itr = EdgesSelection.iterator();
-            HashSet<Point> toAdd = new HashSet();
-            HashSet<Point> toRemove = new HashSet();
+            HashSet<PointXY> toAdd = new HashSet();
+            HashSet<PointXY> toRemove = new HashSet();
             
             while(itr.hasNext())
             {
                 lastSize = ObjectSelection.size();
-                Point p = (Point)(itr.next());
+                PointXY p = (PointXY)(itr.next());
                 if (!p.isObjectEdgePixel)
                 {
                     continue;
@@ -6426,7 +6649,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                     if (Math.abs(averageP - topP) < gradientThreshold)
                     {
                         neighborCounter++;
-                        toAdd.add(new Point(topPixel.column, topPixel.row));
+                        toAdd.add(new PointXY(topPixel.column, topPixel.row));
                     }
                 }
                 if (pix.row < image_pixels.getHeight() - 1)
@@ -6436,7 +6659,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                     if (Math.abs(averageP - bottomP) < gradientThreshold)
                     {
                         neighborCounter++;
-                        toAdd.add(new Point(bottomPixel.column, bottomPixel.row));
+                        toAdd.add(new PointXY(bottomPixel.column, bottomPixel.row));
                     }
                 }
                 if (pix.column > 0)
@@ -6446,7 +6669,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                     if (Math.abs(averageP - leftP) < gradientThreshold)
                     {
                         neighborCounter++;
-                        toAdd.add(new Point(leftPixel.column, leftPixel.row));
+                        toAdd.add(new PointXY(leftPixel.column, leftPixel.row));
                     }
                 }
                 if (pix.column < image_pixels.getWidth() - 1)
@@ -6456,7 +6679,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                     if (Math.abs(averageP - rightP) < gradientThreshold )
                     {
                         neighborCounter++;
-                        toAdd.add(new Point(rightPixel.column, rightPixel.row));
+                        toAdd.add(new PointXY(rightPixel.column, rightPixel.row));
                     }
                 }
                 if (neighborCounter == 4)
@@ -6467,7 +6690,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                 
                 
             }
-            for(Point p : toAdd) 
+            for(PointXY p : toAdd) 
             {
                 ObjectSelection.add(p);
                 if (p.isObjectEdgePixel)
@@ -6475,7 +6698,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                     EdgesSelection.add(p);
                 }
             }
-            for(Point p : toRemove) 
+            for(PointXY p : toRemove) 
             {
                 if (!p.isObjectEdgePixel)
                 {
@@ -6539,7 +6762,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         rectangle.width = rightX - leftX;
         rectangle.height = downY - upY;
          */
-        for (Point p : ObjectSelection) {
+        for (PointXY p : ObjectSelection) {
             Pixel pix = getPixel(p.x,p.y,image_pixels);
             pix.setRGB(0,0,255);
         }
@@ -6848,12 +7071,12 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         }
     }
     
-    class Point {
+    class PointXY {
         int x;
         int y;
         boolean isObjectEdgePixel = true;
         
-        Point(int x, int y)
+        PointXY(int x, int y)
         {
             this.x = x;
             this.y = y;
@@ -6869,12 +7092,12 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
 
             /* Check if o is an instance of Complex or not
               "null instanceof [type]" also returns false */
-            if (!(o instanceof Point)) {
+            if (!(o instanceof PointXY)) {
                 return false;
             }
 
             // typecast o to Complex so that we can compare data members 
-            Point p = (Point) o;
+            PointXY p = (PointXY) o;
 
             // Compare the data members and return accordingly 
             return p.x == this.x && p.y == this.y;
@@ -7037,6 +7260,7 @@ class MaskedObject
     
     Polygon polygon;
     Color color;
+    Color secondary_color;
     int id;
     double depth;
     int hue_variation;
@@ -7047,6 +7271,7 @@ class MaskedObject
     public MaskedObject()
     {
         polygon = new Polygon();
+        secondary_color = new Color(128,128,128);
         depth = 0;
     }
     
@@ -7065,6 +7290,7 @@ class ProjectState {
     int hoverVertexIndex = -1;
     MaskedObject adjacentPolygon;
     int adjacentPolygonVertex = -1;
+    MaskedObject tempAutoCompletePolygon = null;
     ArrayList<MaskedObject> selectedObjects = new ArrayList();
     ArrayList<ArrayList<Integer>> selectedVertices = new ArrayList();
     
@@ -7099,6 +7325,22 @@ class ConvolveRegionMap {
                 }
             }
         }
+    }
+    
+}
+
+
+class ColorFrequency implements Comparable {
+    
+    Color color;
+    int frequency = 0;
+
+    @Override
+    public int compareTo(Object o) {
+        ColorFrequency cf = (ColorFrequency)o;
+        if (this.frequency == cf.frequency) return 0;
+        if (this.frequency < cf.frequency) return 1;
+        return -1;
     }
     
 }
