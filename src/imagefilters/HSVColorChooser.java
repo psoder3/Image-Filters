@@ -90,8 +90,13 @@ public class HSVColorChooser extends JPanel {
     JButton beginFramesButton = new JButton("Grab Frames For Editing");
     JTextField numFramesField = new JTextField(3);
     
+    
+    JLabel idLbl = new JLabel("   Object id");
+    JTextField idField = new JTextField(3);
+    
     JLabel depthLbl = new JLabel("   Object Depth");
     JTextField depthField = new JTextField(3);
+    
     
     
     boolean lastPressedWasBackward = false;
@@ -131,6 +136,10 @@ public class HSVColorChooser extends JPanel {
     {
         JPanel depthPanel = new JPanel();
         depthField.setText("0");
+        idField.setText("0");
+        idField.setEditable(false);
+        depthPanel.add(this.idLbl);
+        depthPanel.add(this.idField);
         depthPanel.add(this.depthLbl);
         depthPanel.add(this.depthField);
         depthField.addFocusListener(new FocusListener() {

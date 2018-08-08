@@ -83,6 +83,8 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
     int upDown = 19;
     int scrollAmount = 10;
     
+    MaskedObject emptyObject = new MaskedObject();
+    
     Stack<ProjectState> UndoStack = new Stack();
     Stack<ProjectState> RedoStack = new Stack();
     
@@ -133,6 +135,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
     JButton SplitVideoFramesButton = new JButton("Split Video Frames");
     JButton AssembleFramesButton = new JButton("Assemble Video Frames");
     JButton ColorizeFramesButton = new JButton("Colorize Video Frames");
+    JButton ApplySchemeAllFramesButton = new JButton("Apply Frame to All");
     JButton GenerateTrainingArrangements = new JButton("Generate Training Arrangements");
     //JButton CreateColorizedMovieButton = new JButton("Create Colorized Movie");
     JButton AsciiFilterButton = new JButton("Ascii Filter");
@@ -840,6 +843,10 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
     private void colorPixel(int column, int row, MaskedObject containingObj)
     {
         Color color_picked;
+        if (containingObj == null)
+        {
+            containingObj = emptyObject;
+        }
         int hue_variation = containingObj.hue_variation;
         int saturation_variation = containingObj.saturation_variation;
         Pixel pixel = getPixel(column,row,image_pixels);
@@ -851,7 +858,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         pixelR = average;
         pixelG = average;
         pixelB = average;
-        if (containingObj == null)
+        if (containingObj == emptyObject)
         {
             color_picked = new Color(0,0,0);
         }
@@ -3446,6 +3453,106 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         }
     }
     
+    private void copyPolygonScheme(MaskedObject source, MaskedObject destination)
+    {
+        destination.color = source.color;
+        destination.complement_threshold = source.complement_threshold;
+        destination.depth = source.depth;
+        destination.edgeBlendIndex = source.edgeBlendIndex;
+        destination.hue_variation = source.hue_variation;
+        destination.saturation_variation = source.saturation_variation;
+        destination.secondary_color = source.secondary_color;
+        destination.secondary_hue_variation = source.secondary_hue_variation;
+        destination.secondary_sat_variation = source.secondary_sat_variation;
+    }
+    
+    private void applyCurrentFrameToPMOC(String pmocFileName)
+    {
+        try {
+            File pmocFile = new File(pmocFileName);
+            ArrayList<MaskedObject> polys = getDataFromPMOC(pmocFile);
+            for (int i = 0; i < polys.size(); i++)
+            {
+                MaskedObject schemeP = currentProjectState.polygons.get(i);
+                MaskedObject p = polys.get(i);
+                copyPolygonScheme(schemeP,p);
+            }
+            if (polys.size() > 0)
+            {
+                writeObjectsToPMOCFile(polys,pmocFileName);
+            }
+            
+        } catch (FileNotFoundException ex) {
+            Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, ex);
+        }
+    }
+    
+    private void writeImageFile(BufferedImage imgPixels, String filename, String type)
+    {
+        try {
+            File outputfile = new File("PMOCs"+File.separator+filename+"."+type);
+            ImageIO.write(imgPixels, type, outputfile);
+        } catch (IOException ex) {
+            Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, ex);
+        }
+    }
+    
+    private void ApplyFrameToAllFrames()
+    {
+        File folder = new File("Video Frame PMOCs"+File.separator);
+        for (final File fileEntry : folder.listFiles()) 
+        {
+            if (!fileEntry.isDirectory()) {
+                if ((fileEntry.getName().substring(fileEntry.getName().length()-4)).equals("pmoc"))
+                {
+                    String filename = "Video Frame PMOCs" + File.separator + fileEntry.getName();
+                    applyCurrentFrameToPMOC(filename);
+                }
+                    
+            }
+        }
+    }
+    
+    private void writeObjectsToPMOCFile(ArrayList<MaskedObject> objects, String filename)
+    {
+        try {
+            FileWriter fw = new FileWriter(new File(filename));
+            fw.append(scale + "\n");
+            fw.append(objects.size()+"\n");
+            for (MaskedObject p : objects)
+            {
+                if (p.color != null)
+                {
+                    fw.append("rgb " + p.color.getRed() + " " + p.color.getGreen() + " " + p.color.getBlue() + "\n");
+                }
+                fw.append("hVar " + p.hue_variation + "\n");
+                fw.append("sVar " + p.saturation_variation + "\n");
+                if (p.secondary_color != null)
+                {
+                    fw.append("rgb2 " + p.secondary_color.getRed() + " " + p.secondary_color.getGreen() + " " + p.secondary_color.getBlue() + "\n");
+                }
+                fw.append("hVar2 " + p.secondary_hue_variation + "\n");
+                fw.append("sVar2 " + p.secondary_sat_variation + "\n");
+                fw.append("shadowComplement " + p.complement_threshold + "\n");
+                fw.append("edgeBlendIndex " + p.edgeBlendIndex + "\n");
+                fw.append("depth " + p.depth + "\n");
+                fw.append(p.polygon.npoints+"\n");
+                for (int i = 0; i < p.polygon.npoints; i++)
+                {
+                    fw.append(p.polygon.xpoints[i] + " ");
+                    fw.append(p.polygon.ypoints[i] + " ");
+                }
+                fw.append("\n");
+            }
+            fw.close();
+            
+        } catch (IOException ex) {
+            Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, ex);
+        }
+    }
+    
+    
+    
     public static void main(String[] args) {
         
         
@@ -3911,42 +4018,10 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         
         
         graphic.saveButton.addActionListener((ActionEvent e) -> {
-            String filename = graphic.filenameTextBox.getText();
-            try {
-                FileWriter fw = new FileWriter(new File("PMOCs"+File.separator+filename+".pmoc"));
-                fw.append(graphic.scale + "\n");
-                fw.append(graphic.currentProjectState.polygons.size()+"\n");
-                for (MaskedObject p : graphic.currentProjectState.polygons)
-                {
-                    if (p.color != null)
-                    {
-                        fw.append("rgb " + p.color.getRed() + " " + p.color.getGreen() + " " + p.color.getBlue() + "\n");
-                    }
-                    fw.append("hVar " + p.hue_variation + "\n");
-                    fw.append("sVar " + p.saturation_variation + "\n");
-                    if (p.secondary_color != null)
-                    {
-                        fw.append("rgb2 " + p.secondary_color.getRed() + " " + p.secondary_color.getGreen() + " " + p.secondary_color.getBlue() + "\n");
-                    }
-                    fw.append("hVar2 " + p.secondary_hue_variation + "\n");
-                    fw.append("sVar2 " + p.secondary_sat_variation + "\n");
-                    fw.append("shadowComplement " + p.complement_threshold + "\n");
-                    fw.append("edgeBlendIndex " + p.edgeBlendIndex + "\n");
-                    fw.append("depth " + p.depth + "\n");
-                    fw.append(p.polygon.npoints+"\n");
-                    for (int i = 0; i < p.polygon.npoints; i++)
-                    {
-                        fw.append(p.polygon.xpoints[i] + " ");
-                        fw.append(p.polygon.ypoints[i] + " ");
-                    }
-                    fw.append("\n");
-                }
-                fw.close();
-                File outputfile = new File("PMOCs"+File.separator+filename+".png");
-                ImageIO.write(graphic.image_pixels, "png", outputfile);
-            } catch (IOException ex) {
-                Logger.getLogger(ImageFilters.class.getName()).log(Level.SEVERE, null, ex);
-            }
+            String filename = "PMOCs" + File.separator + graphic.filenameTextBox.getText();
+
+            graphic.writeObjectsToPMOCFile(graphic.currentProjectState.polygons, filename); 
+            graphic.writeImageFile(graphic.image_pixels,filename,"png");
             
         }); 
         
@@ -3996,6 +4071,12 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
             }
         });
         
+        graphic.ApplySchemeAllFramesButton.addActionListener (new ActionListener () {
+            public void actionPerformed(ActionEvent e) {
+                graphic.ApplyFrameToAllFrames();
+            }
+        });
+        
         graphic.recolorPolygonsButton.addActionListener(new ActionListener () {
             public void actionPerformed(ActionEvent e) {
                 graphic.recolorSelectedPolygons();
@@ -4042,6 +4123,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         
         
         graphic.buttons2.add(graphic.colorLayersButton);
+        graphic.buttons2.add(graphic.ApplySchemeAllFramesButton);
         
         //graphic.buttons2.add(graphic.PixelateButton);
         //graphic.buttons2.add(graphic.Mosaic1Button);
@@ -5117,6 +5199,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                 int ycoord = reader.nextInt();
                 poly.polygon.addPoint(xcoord, ycoord);
             }
+            poly.id = tempPolygons.size();
             poly.depth = depth;
             tempPolygons.add(poly);
         }
@@ -6320,6 +6403,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                 hsvColorChooser.complement_spinner.setValue(clickedObject.complement_threshold);
                 hsvColorChooser.complement_slider.setValue(clickedObject.complement_threshold);
                 hsvColorChooser.edgeBlendList.setSelectedIndex(clickedObject.edgeBlendIndex);
+                hsvColorChooser.idField.setText(clickedObject.id+"");
 
             }
             else
@@ -6328,6 +6412,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                 currentProjectState.selectedPolygon = null;
                 hsvColorChooser.setSelectedColor(Color.white);
                 hsvColorChooser.depthField.setText("0");
+                hsvColorChooser.idField.setText("NULL");
             }
             repaint();
         }
