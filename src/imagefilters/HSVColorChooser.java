@@ -35,6 +35,9 @@ public class HSVColorChooser extends JPanel {
     
     String[] edgeBlendStrings = { "No Edge Blend", "Edge Blend 1 Pixel"};
     JComboBox edgeBlendList = new JComboBox(edgeBlendStrings);
+    String[] whichColorStrings = { "Primary Color", "Secondary Color"};
+    JComboBox whichColorList = new JComboBox(whichColorStrings);
+    
 
     
     JSlider hue_slider;
@@ -272,8 +275,16 @@ public class HSVColorChooser extends JPanel {
                 hue_var_slider.setValue((int)(hue_variation_spinner.getValue()));
                 if (imgFilters.currentProjectState.selectedPolygon != null)
                 {
-                    imgFilters.currentProjectState.selectedPolygon.hue_variation = 
-                            (int)hue_variation_spinner.getValue();
+                    if (whichColorList.getSelectedItem().equals("Primary Color"))
+                    {
+                        imageFilters.currentProjectState.selectedPolygon.hue_variation = 
+                        (int)hue_variation_spinner.getValue();
+                    }
+                    else if (whichColorList.getSelectedItem().equals("Secondary Color"))
+                    {
+                        imageFilters.currentProjectState.selectedPolygon.secondary_hue_variation = 
+                        (int)hue_variation_spinner.getValue();
+                    }
                 }
                 calculateRGB();
                 repaint();
@@ -308,8 +319,17 @@ public class HSVColorChooser extends JPanel {
                 sat_var_slider.setValue((int)(sat_variation_spinner.getValue()));
                 if (imgFilters.currentProjectState.selectedPolygon != null)
                 {
-                    imgFilters.currentProjectState.selectedPolygon.saturation_variation = 
+                    if (whichColorList.getSelectedItem().equals("Primary Color"))
+                    {
+                        imageFilters.currentProjectState.selectedPolygon.saturation_variation = 
                         (int)sat_variation_spinner.getValue();
+                    }
+                    else if (whichColorList.getSelectedItem().equals("Secondary Color"))
+                    {
+                        imageFilters.currentProjectState.selectedPolygon.secondary_sat_variation = 
+                        (int)sat_variation_spinner.getValue();
+                    }
+                    
                 }
                 repaint();
                 calculateRGB();
@@ -366,6 +386,34 @@ public class HSVColorChooser extends JPanel {
                 int index = edgeBlendList.getSelectedIndex();
                 imgFilters.currentProjectState.selectedPolygon.edgeBlendIndex = index;
                 calculateRGB();
+                repaint();
+            }
+        });
+        
+        // -----------------------
+        // Which Color JCombo Box
+        // -----------------------
+        
+        whichColorList.addActionListener (new ActionListener () {
+            public void actionPerformed(ActionEvent e) {
+                String whichColorString = (String)(whichColorList.getSelectedItem());
+                MaskedObject clickedObject = imgFilters.currentProjectState.selectedPolygon;
+                if (whichColorString.equals("Primary Color"))
+                {
+                    setSelectedColor(clickedObject.color);
+                    hue_variation_spinner.setValue(clickedObject.hue_variation);
+                    sat_variation_spinner.setValue(clickedObject.saturation_variation);
+                    hue_var_slider.setValue(clickedObject.hue_variation);
+                    sat_var_slider.setValue(clickedObject.saturation_variation);
+                }
+                else if (whichColorString.equals("Secondary Color"))
+                {
+                    setSelectedColor(clickedObject.secondary_color);
+                    hue_variation_spinner.setValue(clickedObject.secondary_hue_variation);
+                    sat_variation_spinner.setValue(clickedObject.secondary_sat_variation);
+                    hue_var_slider.setValue(clickedObject.secondary_hue_variation);
+                    sat_var_slider.setValue(clickedObject.secondary_sat_variation);
+                }
                 repaint();
             }
         });
@@ -559,6 +607,7 @@ public class HSVColorChooser extends JPanel {
         
         */
         
+        this.add(whichColorList);
         this.add(hue_panel);
         this.add(sat_panel);
         this.add(val_panel);
@@ -645,12 +694,18 @@ public class HSVColorChooser extends JPanel {
         if (imageFilters.currentProjectState.selectedPolygon != null)
         {
             Color color = getColor();
-            imageFilters.currentProjectState.selectedPolygon.color = color;
+            String whichColor = (String)(whichColorList.getSelectedItem());
+            if (whichColor.equals("Primary Color"))
+            {
+                imageFilters.currentProjectState.selectedPolygon.color = color;
+            }
+            else if (whichColor.equals("Secondary Color"))
+            {
+                imageFilters.currentProjectState.selectedPolygon.secondary_color = color;
+            }
             MaskedObject polygon = imageFilters.currentProjectState.selectedPolygon;
-            int hue_variation = imageFilters.currentProjectState.selectedPolygon.hue_variation;
-            int saturation_variation = imageFilters.currentProjectState.selectedPolygon.saturation_variation;
-            int complement_threshold = imageFilters.currentProjectState.selectedPolygon.complement_threshold;
-            imageFilters.colorizePolygon(polygon,hue_variation,saturation_variation,complement_threshold);
+
+            imageFilters.colorizePolygon(polygon);
             imageFilters.repaint();
         }
     }

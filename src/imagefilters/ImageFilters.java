@@ -837,10 +837,11 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         );
     }
     
-    private void colorPixel(int column, int row, MaskedObject containingObj, int hue_variation,
-            int saturation_variation, int secondary_threshold)
+    private void colorPixel(int column, int row, MaskedObject containingObj)
     {
         Color color_picked;
+        int hue_variation = containingObj.hue_variation;
+        int saturation_variation = containingObj.saturation_variation;
         Pixel pixel = getPixel(column,row,image_pixels);
         int pixelR = pixel.getRedValue();
         int pixelG = pixel.getGreenValue();
@@ -854,9 +855,11 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         {
             color_picked = new Color(0,0,0);
         }
-        else if (average > 256-secondary_threshold)
+        else if (average > 256-containingObj.complement_threshold)
         {
             color_picked = containingObj.secondary_color;
+            hue_variation = containingObj.secondary_hue_variation;
+            saturation_variation = containingObj.secondary_sat_variation;
         }
         else 
         {
@@ -1107,8 +1110,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
 
     }
     
-    public void colorizePolygon(MaskedObject containingObj, int hue_variation, int saturation_variation,
-            int complement_threshold)
+    public void colorizePolygon(MaskedObject containingObj)
     {
         if (containingObj == null || currentProjectState.selectedPolygon == null)
         {
@@ -1131,8 +1133,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                 
                 if (containingObjects.size() == 1)
                 {
-                    colorPixel(column,row,containingObj,hue_variation,
-                            saturation_variation,complement_threshold);
+                    colorPixel(column,row,containingObj);
                 }
                 else
                 {
@@ -1148,8 +1149,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                     }
                     if (topLayer)
                     {
-                        colorPixel(column,row,containingObj,hue_variation,
-                                saturation_variation,complement_threshold);
+                        colorPixel(column,row,containingObj);
                     }
                 }
             }
@@ -1187,7 +1187,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                     }
                     else
                     {
-                        colorPixel(column,row,null,0,0,0);
+                        colorPixel(column,row,null);
                     }
                     continue;
                 }
@@ -1204,9 +1204,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                         winningObject = p;
                     }
                 }
-                colorPixel(column,row,winningObject,winningObject.hue_variation,
-                        winningObject.saturation_variation,
-                        winningObject.complement_threshold);
+                colorPixel(column,row,winningObject);
             }
             //System.out.println();
         }
@@ -3926,6 +3924,12 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                     }
                     fw.append("hVar " + p.hue_variation + "\n");
                     fw.append("sVar " + p.saturation_variation + "\n");
+                    if (p.secondary_color != null)
+                    {
+                        fw.append("rgb2 " + p.secondary_color.getRed() + " " + p.secondary_color.getGreen() + " " + p.secondary_color.getBlue() + "\n");
+                    }
+                    fw.append("hVar2 " + p.secondary_hue_variation + "\n");
+                    fw.append("sVar2 " + p.secondary_sat_variation + "\n");
                     fw.append("shadowComplement " + p.complement_threshold + "\n");
                     fw.append("edgeBlendIndex " + p.edgeBlendIndex + "\n");
                     fw.append("depth " + p.depth + "\n");
@@ -4124,6 +4128,17 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                 }
                 fw.append("hVar " + p.hue_variation + "\n");
                 fw.append("sVar " + p.saturation_variation + "\n");
+                
+                if (p.secondary_color == null)
+                {
+                    fw.append("rgb2 0 0 0\n");
+                }
+                else
+                {
+                    fw.append("rgb2 " + p.secondary_color.getRed() + " " + p.secondary_color.getGreen() + " " + p.secondary_color.getBlue() + "\n");
+                }
+                fw.append("hVar2 " + p.secondary_hue_variation + "\n");
+                fw.append("sVar2 " + p.secondary_sat_variation + "\n");
                 
                 fw.append("shadowComplement " + p.complement_threshold + "\n");
                 fw.append("edgeBlendIndex " + p.edgeBlendIndex + "\n");
@@ -5045,6 +5060,29 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
             {
                 int saturationVariation = reader.nextInt();
                 poly.saturation_variation = saturationVariation;
+                next = reader.next();
+            }
+            
+            if (next.equals("rgb2"))
+            {
+                int r2 = reader.nextInt();
+                int g2 = reader.nextInt();
+                int b2 = reader.nextInt();
+                poly.secondary_color = new Color(r2,g2,b2);
+                next = reader.next();
+            }
+            
+            if (next.equals("hVar2"))
+            {
+                int hueVariation2 = reader.nextInt();
+                poly.secondary_hue_variation = hueVariation2;
+                next = reader.next();
+            }
+            
+            if (next.equals("sVar2"))
+            {
+                int saturationVariation2 = reader.nextInt();
+                poly.secondary_sat_variation = saturationVariation2;
                 next = reader.next();
             }
             
@@ -6260,17 +6298,25 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
             if (clickedObject != null)
             {
                 currentProjectState.selectedPolygon = clickedObject;
-                int x = clickedObject.polygon.xpoints[clickedObject.polygon.npoints-1];
-                int y = clickedObject.polygon.ypoints[clickedObject.polygon.npoints-1];
-                //selectedVertex = new Point(x,y);
                 currentProjectState.selectedVertexIndex = clickedObject.polygon.npoints-1;
-                //colorChooser.setSelectedColor(selectedPolygon.color);
-                hsvColorChooser.setSelectedColor(currentProjectState.selectedPolygon.color);
+                if (hsvColorChooser.whichColorList.getSelectedItem().equals("Primary Color"))
+                {
+                    hsvColorChooser.setSelectedColor(currentProjectState.selectedPolygon.color);
+                    hsvColorChooser.hue_variation_spinner.setValue(clickedObject.hue_variation);
+                    hsvColorChooser.sat_variation_spinner.setValue(clickedObject.saturation_variation);
+                    hsvColorChooser.hue_var_slider.setValue(clickedObject.hue_variation);
+                    hsvColorChooser.sat_var_slider.setValue(clickedObject.saturation_variation);
+                }
+                else if (hsvColorChooser.whichColorList.getSelectedItem().equals("Secondary Color"))
+                {
+                    hsvColorChooser.setSelectedColor(currentProjectState.selectedPolygon.secondary_color);
+                    hsvColorChooser.hue_variation_spinner.setValue(clickedObject.secondary_hue_variation);
+                    hsvColorChooser.sat_variation_spinner.setValue(clickedObject.secondary_sat_variation);
+                    hsvColorChooser.hue_var_slider.setValue(clickedObject.secondary_hue_variation);
+                    hsvColorChooser.sat_var_slider.setValue(clickedObject.secondary_sat_variation);
+                }
                 hsvColorChooser.depthField.setText(clickedObject.depth+"");
-                hsvColorChooser.hue_variation_spinner.setValue(clickedObject.hue_variation);
-                hsvColorChooser.sat_variation_spinner.setValue(clickedObject.saturation_variation);
-                hsvColorChooser.hue_var_slider.setValue(clickedObject.hue_variation);
-                hsvColorChooser.sat_var_slider.setValue(clickedObject.saturation_variation);
+                
                 hsvColorChooser.complement_spinner.setValue(clickedObject.complement_threshold);
                 hsvColorChooser.complement_slider.setValue(clickedObject.complement_threshold);
                 hsvColorChooser.edgeBlendList.setSelectedIndex(clickedObject.edgeBlendIndex);
@@ -6279,7 +6325,6 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
             else
             {
                 currentProjectState.selectedVertexIndex = -1;
-                //selectedVertex = null;
                 currentProjectState.selectedPolygon = null;
                 hsvColorChooser.setSelectedColor(Color.white);
                 hsvColorChooser.depthField.setText("0");
@@ -6308,9 +6353,6 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
             int index = clickNearVertex(click.x, click.y);
             if (index != -1)
             {
-                int x = currentProjectState.selectedPolygon.polygon.xpoints[index];
-                int y = currentProjectState.selectedPolygon.polygon.ypoints[index];
-                //selectedVertex = new Point(x,y);
                 currentProjectState.selectedVertexIndex = index;
                 cycleToSelected();
             }
@@ -6332,7 +6374,6 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
                 else
                 {
                     currentProjectState.selectedPolygon.polygon.addPoint(click.x, click.y);
-                    //selectedVertex = new Point(e.getX(), e.getY());
                 }
                 currentProjectState.selectedVertexIndex = currentProjectState.selectedPolygon.polygon.npoints-1;
                 
@@ -7026,8 +7067,7 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         {
             currentProjectState.selectedPolygon = p;
             currentProjectState.selectedVertexIndex = 0;
-            colorizePolygon(p, p.hue_variation, p.saturation_variation, 
-                    p.complement_threshold);
+            colorizePolygon(p);
         }
         repaint();
     }
@@ -7265,6 +7305,10 @@ class MaskedObject
     double depth;
     int hue_variation;
     int saturation_variation;
+    
+    int secondary_hue_variation;
+    int secondary_sat_variation;
+    
     int complement_threshold;
     int edgeBlendIndex;
     
