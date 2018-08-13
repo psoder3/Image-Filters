@@ -4018,9 +4018,10 @@ public class ImageFilters extends JPanel implements MouseListener, KeyListener, 
         
         
         graphic.saveButton.addActionListener((ActionEvent e) -> {
-            String filename = "PMOCs" + File.separator + graphic.filenameTextBox.getText();
+            String filename = graphic.filenameTextBox.getText();
 
-            graphic.writeObjectsToPMOCFile(graphic.currentProjectState.polygons, filename); 
+            graphic.writeObjectsToPMOCFile(graphic.currentProjectState.polygons, "PMOCs"
+                    + File.separator + filename+".pmoc"); 
             graphic.writeImageFile(graphic.image_pixels,filename,"png");
             
         }); 
